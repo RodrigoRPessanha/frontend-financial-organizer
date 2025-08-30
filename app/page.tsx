@@ -29,7 +29,7 @@ function formatDateBR(dateStr: string) {
 }
 
 export default function Page() {
-const { loading, loggedIn, check, forceGuest } = useSession();
+  const { loading, loggedIn, username, check, logout } = useSession();
 
   const [cats, setCats] = useState<Cat[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
