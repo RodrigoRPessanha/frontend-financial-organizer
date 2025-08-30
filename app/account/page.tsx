@@ -72,10 +72,7 @@ export default function AccountPage(){
     return (
       <div className="p-6 text-sm text-muted">
         Verificando sessão…
-        <button
-          onClick={forceLogout}
-          className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80"
-        >
+        <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
           Forçar sair
         </button>
       </div>
