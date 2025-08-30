@@ -15,7 +15,7 @@ function getInitials(username?: string | null){
 }
 
 export default function AccountPage(){
-  const { loggedIn, loading, user } = useSession();
+  const { loggedIn, loading } = useSession();
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7));
