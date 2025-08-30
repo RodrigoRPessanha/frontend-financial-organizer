@@ -25,6 +25,12 @@ export const api = {
   logout: () => http<{ ok: true }>("/auth/logout", { method: "POST" }),
   me: () => http<{ id: number; username: string | null }>("/auth/me"),
 
+  changePassword: (payload: { old_password: string; new_password: string }) =>
+    http<{ ok: true }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+    
   // Categories/Subcategories
   listCategories: () => http<any[]>("/categories"),
   createCategory: (payload: { name: string; kind: "expense" | "income" }) =>
