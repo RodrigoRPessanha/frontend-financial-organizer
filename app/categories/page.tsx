@@ -128,18 +128,35 @@ export default function CategoriesPage(){
                         {(subsByCat[cat.id] || []).map(sc => (
                           <li key={sc.id} className="flex items-center gap-2">
                             {editSub?.id === sc.id ? (
-                              <>
-                                <input className="input flex-1" value={editSub.name} onChange={e=>setEditSub({...editSub, name: e.target.value})} />
-                                <select className="select" value={editSub.category_id} onChange={e=>setEditSub({...editSub, category_id: Number(e.target.value)})}>
-                                  {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                              <div className="grid grid-cols-[minmax(180px,1fr)_220px_auto_auto] gap-2 w-full">
+                                <input
+                                  type="text"
+                                  className="input w-full"
+                                  value={editSub.name}
+                                  onChange={(e) => setEditSub({ ...editSub, name: e.target.value })}
+                                  placeholder="Nome da subcategoria"
+                                />
+                                <select
+                                  className="select w-[220px]"
+                                  value={editSub.category_id}
+                                  onChange={(e) => setEditSub({ ...editSub, category_id: Number(e.target.value) })}
+                                >
+                                  {cats.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                  ))}
                                 </select>
                                 <button className="btn btn-primary" onClick={saveSub}>Salvar</button>
-                                <button className="btn btn-outline" onClick={()=>setEditSub(null)}>Cancelar</button>
-                              </>
+                                <button className="btn btn-outline" onClick={() => setEditSub(null)}>Cancelar</button>
+                              </div>
                             ) : (
                               <>
                                 <span className="flex-1">{sc.name}</span>
-                                <button className="btn btn-outline" onClick={()=>setEditSub({id: sc.id, name: sc.name, category_id: sc.category_id})}>Editar</button>
+                                <button
+                                  className="btn btn-outline"
+                                  onClick={() => setEditSub({ id: sc.id, name: sc.name, category_id: sc.category_id })}
+                                >
+                                  Editar
+                                </button>
                               </>
                             )}
                           </li>
