@@ -238,7 +238,7 @@ export default function Page() {
 
         {/* NOVO: filtro do gráfico por método de pagamento */}
         <div className="flex flex-col gap-1 shrink-0">
-          <label className="label">Gráfico · Pagamento</label>
+          <label className="label">Pagamento</label>
           <select className="select w-[180px]" value={payChart} onChange={e=>setPayChart(e.target.value as any)}>
             <option value="">Todos</option>
             <option value="cash">Dinheiro</option>
