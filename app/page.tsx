@@ -16,6 +16,19 @@ function formatBRL(v: number) {
 }
 function monthOf(d: string){ return d.slice(0,7); }
 
+function formatDateBR(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return dateStr;
+  // usar UTC pra evitar fuso mudar o dia
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(dt);
+}
+
 function useAuth() {
   const [token, setToken] = useState<string | null>(null);
   useEffect(() => { setToken(localStorage.getItem("token")); }, []);
@@ -343,7 +356,7 @@ export default function Page() {
               {loading && (<tr><td colSpan={6} className="py-6 text-center text-muted">Carregando…</td></tr>)}
               {!loading && filteredTxs.map(t => (
                 <tr key={t.id}>
-                  <td className="py-2">{t.date}</td>
+                  <td className="py-2">{formatDateBR(t.date)}</td>
                   <td>
                     {catById[t.category_id]?.name || t.category_id}
                     {t.subcategory_id ? <span className="text-muted"> / {(subs.find(s => s.id === t.subcategory_id)?.name || t.subcategory_id)}</span> : null}

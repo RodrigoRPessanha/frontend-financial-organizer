@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-primary text-white font-bold">OF</span>
               <div className="flex-1">
                 <h1 className="text-lg font-semibold leading-tight">Organizador Financeiro</h1>
-                <p className="text-xs text-muted">Next.js + Flask (JWT)</p>
+                <p className="text-xs text-muted">Next.js + Tailwind  + Flask (JWT)</p>
               </div>
               <a href="/" className="navlink">Dashboard</a>
               <a href="/rates-demo" className="navlink hidden sm:inline">Cotações</a>
@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="max-w-6xl mx-auto px-4 py-4 text-xs text-muted flex flex-wrap items-center gap-2">
               <span>© {new Date().getFullYear()} Organizador Financeiro</span>
               <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">Feito com Next.js + Tailwind</span>
+              <span className="hidden sm:inline">Feito com Next.js + Tailwind  + Flask (JWT)</span>
             </div>
           </footer>
         </div>
