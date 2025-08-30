@@ -7,7 +7,8 @@ import { useSession } from "../lib/useSession";
 import LoginCard from "../components/LoginCard";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js";
-import ForceLogoutLink from "../components/ForceLogoutLink";
+import SessionLoading from "../components/SessionLoading";
+
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -28,7 +29,7 @@ function formatDateBR(dateStr: string) {
 }
 
 export default function Page() {
-  const { loading, loggedIn, username, logout } = useSession();
+const { loading, loggedIn, check, forceGuest } = useSession();
 
   const [cats, setCats] = useState<Cat[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
@@ -152,15 +153,8 @@ export default function Page() {
     showToast("Transação removida");
   }
   
-  if (loading) {
-    return (
-      <div className="p-6 text-sm text-muted">
-        Verificando sessão…
-        {/* se quiser o link que navega para /auth/logout?next= */}
-        <ForceLogoutLink className="ml-3 underline" />
-      </div>
-    );
-  }
+  if (loading) return <SessionLoading onRetry={check} onGuest={forceGuest} />;
+
 
   if (!loggedIn) return <LoginCard />;
 
