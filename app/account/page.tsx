@@ -3,119 +3,90 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 
-function getInitials(email?: string | null){
-  if(!email) return "U";
-  const base = email.split("@")[0];
-  const parts = base.split(/[._-]+/).filter(Boolean);
-  const chars = (parts[0]?.[0] || base[0] || "U") + (parts[1]?.[0] || "");
-  return chars.toUpperCase();
+function useAuth(){
+  const [token, setToken] = useState<string | null>(null);
+  useEffect(() => { setToken(localStorage.getItem("token")); }, []);
+  function logout(){ localStorage.removeItem("token"); localStorage.removeItem("username"); location.reload(); }
+  return { token, setToken, logout };
 }
 
 export default function AccountPage(){
-  const [email, setEmail] = useState<string | null>(null);
+  const { token, setToken, logout } = useAuth();
+  const [hasUser, setHasUser] = useState<boolean | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
-  const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7));
-  const [confirm, setConfirm] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined"){
-      setEmail(localStorage.getItem("email"));
-    }
-  }, []);
+    (async () => {
+      try { await api.listCategories(); setHasUser(true); }
+      catch { setHasUser(false); }
+    })();
+  }, [token]);
 
-  function logout(){
-    localStorage.removeItem("token");
-    localStorage.removeItem("email");
-    location.href = "/";
+  async function handleRegisterOrLogin(mode: "register" | "login") {
+    try {
+      const r = await (mode === "register" ? api.register({ username, password }) : api.login({ username, password }));
+      localStorage.setItem("token", r.token);
+      localStorage.setItem("username", username);
+      setToken(r.token); 
+      setTimeout(() => location.reload(), 300);
+    } catch (e:any) { alert(e.message || "erro"); }
   }
 
   async function changePassword(){
     if (newPwd.length < 6) return alert("Nova senha precisa de 6+ caracteres.");
-    try {
+    try{
       await api.changePassword({ old_password: oldPwd, new_password: newPwd });
       setOldPwd(""); setNewPwd("");
       alert("Senha alterada com sucesso.");
-    } catch (e:any) {
+    }catch(e:any){
       alert(e.message || "Erro ao alterar senha.");
     }
   }
 
-  async function exportCsv(){
-    try {
-      const blob = await api.exportCsv(month);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `transacoes-${month}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e:any) {
-      alert(e.message || "Erro no export.");
-    }
-  }
-
-  async function deleteAccount(){
-    if (confirm.toLowerCase() !== "deletar") {
-      return alert("Digite 'deletar' para confirmar.");
-    }
-    if (!window.confirm("Tem certeza? Esta ação remove TODOS os seus dados.")) return;
-    try {
-      await api.deleteAccount();
-      alert("Conta deletada.");
-      logout();
-    } catch (e:any) {
-      alert(e.message || "Erro ao deletar conta.");
-    }
+  if (!token) {
+    return (
+      <div className="max-w-md mx-auto mt-6">
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold mb-1">{hasUser ? "Entrar" : "Criar sua conta"}</h2>
+          <p className="text-sm text-muted mb-4">{hasUser ? "Use seu usuário e senha" : "Primeiro usuário do sistema"}</p>
+          <label className="label">Usuário</label>
+          <input className="input mb-3" placeholder="seu_usuario" value={username} onChange={e=>setUsername(e.target.value)} />
+          <label className="label">Senha</label>
+          <input type="password" className="input mb-4" placeholder="Sua senha" value={password} onChange={e=>setPassword(e.target.value)} />
+          <div className="flex gap-2">
+            {!hasUser && <button onClick={()=>handleRegisterOrLogin("register")} className="btn btn-primary w-full">Criar conta</button>}
+            <button onClick={()=>handleRegisterOrLogin("login")} className="btn btn-outline w-full">Entrar</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-6 max-w-2xl">
-      <section className="card p-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-accent text-white flex items-center justify-center text-xl font-bold">
-            {getInitials(email)}
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold">Sua conta</h2>
-            <p className="text-sm text-muted">{email || "—"}</p>
-          </div>
+    <div className="grid gap-6 max-w-xl mx-auto">
+      <div className="card">
+        <div className="card-header">
+          <h3 className="card-title">Conta</h3>
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button onClick={logout} className="btn btn-outline">Sair</button>
-        </div>
-      </section>
-
-      <section className="card p-6">
-        <h3 className="font-semibold mb-3">Alterar senha</h3>
-        <div className="grid gap-2">
-          <input type="password" className="input" placeholder="Senha atual" value={oldPwd} onChange={e=>setOldPwd(e.target.value)} />
-          <input type="password" className="input" placeholder="Nova senha (6+ caracteres)" value={newPwd} onChange={e=>setNewPwd(e.target.value)} />
+        <div className="card-content grid gap-3">
+          <div className="grid gap-1">
+            <label className="label">Nova senha</label>
+            <input type="password" className="input" value={newPwd} onChange={(e)=>setNewPwd(e.target.value)} placeholder="••••••"/>
+          </div>
+          <div className="grid gap-1">
+            <label className="label">Senha atual</label>
+            <input type="password" className="input" value={oldPwd} onChange={(e)=>setOldPwd(e.target.value)} placeholder="••••••"/>
+          </div>
           <div className="flex gap-2">
-            <button onClick={changePassword} className="btn btn-primary">Salvar nova senha</button>
+            <button className="btn btn-primary" onClick={changePassword}>Alterar senha</button>
+            <button className="btn btn-outline" onClick={logout}>Sair</button>
           </div>
         </div>
-      </section>
-
-      <section className="card p-6">
-        <h3 className="font-semibold mb-3">Exportar CSV</h3>
-        <div className="flex items-center gap-2">
-          <input type="month" className="input w-auto" value={month} onChange={e=>setMonth(e.target.value)} />
-          <button onClick={exportCsv} className="btn btn-outline">Baixar CSV</button>
-        </div>
-        <p className="text-xs text-muted mt-2">O arquivo inclui data, valor, categoria e observação.</p>
-      </section>
-
-      <section className="card p-6 border-red-200">
-        <h3 className="font-semibold mb-2 text-red-600">Excluir conta e dados</h3>
-        <p className="text-sm text-muted mb-3">Esta ação é permanente. Digite <b>deletar</b> para confirmar.</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input className="input" placeholder="digite: deletar" value={confirm} onChange={e=>setConfirm(e.target.value)} />
-          <button onClick={deleteAccount} className="btn btn-outline">Excluir tudo</button>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }

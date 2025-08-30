@@ -24,11 +24,11 @@ async function http<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  // Auth
-  register: (payload: {email: string; password: string}) =>
-    http<{token:string}>("/auth/register", { method: "POST", body: JSON.stringify(payload)}),
-  login: (payload: {email: string; password: string}) =>
-    http<{token:string}>("/auth/login", { method: "POST", body: JSON.stringify(payload)}),
+  // Auth (username)
+  register: (payload: {username: string; password: string}) =>
+    http<{token:string}>("/auth/register", { method: "POST", body: JSON.stringify({ username: payload.username, email: payload.username, password: payload.password })}),
+  login: (payload: {username: string; password: string}) =>
+    http<{token:string}>("/auth/login", { method: "POST", body: JSON.stringify({ username: payload.username, email: payload.username, password: payload.password })}),
   changePassword: (payload: {old_password: string; new_password: string}) =>
     http<{ok:true}>("/auth/change-password", { method: "POST", body: JSON.stringify(payload)}),
 
@@ -52,7 +52,7 @@ export const api = {
   createAccount: (payload: {name: string; type: string}) =>
     http("/accounts", { method: "POST", body: JSON.stringify(payload)}),
 
-  // Transactions (add 'vr' to type)
+  // Transactions
   listTransactions: () => http<any[]>("/transactions"),
   createTransaction: (payload: {account_id: number; category_id: number; subcategory_id?: number; amount: number; date: string; note?: string; payment_method?: "cash"|"pix"|"card"|"vr"; installments?: number}) =>
     http<any>("/transactions", { method: "POST", body: JSON.stringify(payload)}),
@@ -62,7 +62,7 @@ export const api = {
     return true;
   },
 
-  // Extras (mantidos)
+  // Extras
   summaryMonth: (month: string) =>
     http<{month: string; total: number; by_category: {category_id: number; total: number}[]; by_subcategory?: {category_id:number; subcategory_id:number; total:number}[] }>(`/summary/month?month=${encodeURIComponent(month)}`),
   deleteAccount: async () => {
