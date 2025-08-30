@@ -1,19 +1,21 @@
 // OWASP-friendly API client: cookies HttpOnly e credentials: 'include'
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-async function http<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
-    credentials: "include",  // envia cookie HttpOnly
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(txt || `HTTP ${res.status}`);
+async function http<T>(path: string, init: RequestInit = {}) {
+  const base = process.env.NEXT_PUBLIC_API_URL!;
+  const headers = new Headers(init.headers || {});
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
-  if (res.status === 204) return {} as T;
-  return (await res.json()) as T;
+  const res = await fetch(base + path, {
+    ...init,
+    headers,
+    credentials: "include",
+    mode: "cors",
+  });
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  const ct = res.headers.get("content-type") || "";
+  return (ct.includes("application/json") ? res.json() : (res as any).blob()) as Promise<T>;
 }
 
 export const api = {

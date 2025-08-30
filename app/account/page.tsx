@@ -4,12 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/useSession";
 import LoginCard from "../../components/LoginCard";
-
-const forceLogout = async () => {
-  try { await api.logout(); } catch {}
-  localStorage.removeItem("username");
-  location.reload();
-};
+import { forceLogout } from "../../lib/forceLogout"; // ajuste caminho relativo quando necessário
 
 function getInitials(username?: string | null){
   if(!username) return "U";

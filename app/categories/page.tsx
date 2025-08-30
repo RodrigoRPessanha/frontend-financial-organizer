@@ -4,15 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/useSession";
 import LoginCard from "../../components/LoginCard";
+import { forceLogout } from "../../lib/forceLogout"; // ajuste caminho relativo quando necessário
 
 type Cat = { id: number; name: string; kind: "expense" | "income" };
 type Sub = { id: number; category_id: number; name: string };
-
-const forceLogout = async () => {
-  try { await api.logout(); } catch {}
-  localStorage.removeItem("username");
-  location.reload();
-};
 
 export default function CategoriesPage(){
   const { loggedIn, loading } = useSession();

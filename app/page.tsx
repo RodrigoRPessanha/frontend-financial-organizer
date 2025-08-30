@@ -7,6 +7,8 @@ import { useSession } from "../lib/useSession";
 import LoginCard from "../components/LoginCard";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js";
+import { forceLogout } from "../lib/forceLogout"; // ajuste caminho relativo quando necessário
+
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 type Cat = { id: number; name: string; kind: "expense" | "income" };
@@ -24,11 +26,6 @@ function formatDateBR(dateStr: string) {
   const dt = new Date(Date.UTC(y, m - 1, d));
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(dt);
 }
-const forceLogout = async () => {
-  try { await api.logout(); } catch {}
-  localStorage.removeItem("username");
-  location.reload();
-};
 
 export default function Page() {
   const { loggedIn, loading } = useSession();
