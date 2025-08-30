@@ -155,8 +155,21 @@ export default function Page() {
     location.reload();
   }
 
-  if (loading) return <div className="p-6 text-sm text-muted">Verificando sessão…</div>;
-  if (!loggedIn) return <LoginCard />;
+  if (loading) {
+  async function forceLogout() {
+    try { await api.logout(); } catch {}
+    localStorage.removeItem("username");
+    location.reload();
+  }
+  return (
+    <div className="p-6 text-sm text-muted">
+      Verificando sessão…
+      <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
+        Forçar sair
+      </button>
+    </div>
+  );
+}  if (!loggedIn) return <LoginCard />;
 
   return (
     <div className="grid gap-6">
