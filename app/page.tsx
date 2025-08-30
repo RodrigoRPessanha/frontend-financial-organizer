@@ -9,11 +9,12 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 type Cat = { id: number; name: string; kind: "expense" | "income" };
 type Sub = { id: number; category_id: number; name: string };
 type Acc = { id: number; name: string; type: string };
-type Tx = { id: number; account_id: number; category_id: number; subcategory_id?: number | null; amount: number; date: string; note?: string };
+type Tx = { id: number; account_id: number; category_id: number; subcategory_id?: number | null; amount: number; date: string; note?: string; payment_method?: "cash"|"pix"|"card"; installments?: number; installment_index?: number };
 
 function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+function monthOf(d: string){ return d.slice(0,7); }
 
 function useAuth() {
   const [token, setToken] = useState<string | null>(null);
@@ -40,13 +41,15 @@ export default function Page() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7));
-  const [summary, setSummary] = useState<{ total: number; by_category: {category_id: number; total: number}[] } | null>(null);
+  const [filterCat, setFilterCat] = useState<number | "">("");        // NEW
+  const [filterSub, setFilterSub] = useState<number | "">("");        // NEW
+  const [filterDay, setFilterDay] = useState<string>("");               // NEW
 
   const [catName, setCatName] = useState("");
   const [subName, setSubName] = useState("");
   const [subParent, setSubParent] = useState<number | "">("");
 
-  const [tx, setTx] = useState({category_id: "", subcategory_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: ""});
+  const [tx, setTx] = useState({category_id: "", subcategory_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: "", payment_method: "cash", installments: 1}); // NEW
   const [filter, setFilter] = useState<"all"|"in"|"out">("all");
 
   const catById = useMemo(() => Object.fromEntries(cats.map(c => [c.id, c])), [cats]);
@@ -98,10 +101,39 @@ export default function Page() {
     })().finally(() => setLoading(false));
   }, [token]);
 
-  useEffect(() => {
-    if (!token) return;
-    api.summaryMonth(month).then(s => setSummary({ total: s.total, by_category: s.by_category })).catch(()=>setSummary(null));
-  }, [month, token, txs.length]);
+  // Derived filters
+  const availableSubs = Number(tx.category_id) ? (subsByCat[Number(tx.category_id)] || []) : [];
+  const filterSubsAvail = filterCat ? (subsByCat[Number(filterCat)] || []) : [];
+
+  // Apply filters to transactions for table + chart
+  const filteredTxs = useMemo(() => {
+    return txs.filter(t => {
+      if (month && monthOf(t.date) !== month) return false;                // month filter
+      if (filterDay && t.date !== filterDay) return false;                 // day filter (optional)
+      if (filterCat && t.category_id !== Number(filterCat)) return false;  // category filter
+      if (filterSub && (t.subcategory_id || null) !== Number(filterSub)) return false; // subcategory filter
+      if (filter !== "all") {
+        const isIncome = (catById[t.category_id]?.kind === "income");
+        if (filter === "in" && !isIncome) return false;
+        if (filter === "out" && isIncome) return false;
+      }
+      return true;
+    });
+  }, [txs, month, filterDay, filterCat, filterSub, filter, catById]);
+
+  // Chart derived from filteredTxs
+  const chartAgg = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const t of filteredTxs) {
+      const prev = map.get(t.category_id) || 0;
+      map.set(t.category_id, prev + t.amount);
+    }
+    const labels = Array.from(map.keys()).map(id => catById[id]?.name || String(id));
+    const values = Array.from(map.values()).map(v => Math.abs(v));
+    return { labels, values };
+  }, [filteredTxs, catById]);
+
+  const data = { labels: chartAgg.labels, datasets: [{ label: "Despesas por categoria", data: chartAgg.values, backgroundColor: chartAgg.labels.map((_, i) => i % 3 === 0 ? "rgba(99,102,241,.8)" : i % 3 === 1 ? "rgba(16,185,129,.8)" : "rgba(239,68,68,.8)") }] };
 
   async function addCategory() {
     if(!catName.trim()) return;
@@ -118,22 +150,26 @@ export default function Page() {
   }
 
   async function addTx() {
-    const payload = {
+    const payload: any = {
       account_id: accs[0]?.id,
       category_id: Number(tx.category_id),
       subcategory_id: tx.subcategory_id ? Number(tx.subcategory_id) : undefined, // opcional
       amount: -Math.abs(parseFloat(String(tx.amount).replace(",", "."))),
       date: tx.date,
-      note: tx.note || undefined
+      note: tx.note || undefined,
+      payment_method: tx.payment_method,                 // NEW
+      installments: Number(tx.installments || 1)         // NEW
     };
     if(!payload.account_id || !payload.category_id || isNaN(payload.amount)) return;
-    if (payload.subcategory_id && !(subsByCat[payload.category_id] || []).some(s => s.id === payload.subcategory_id)) {
-      return alert("Subcategoria não pertence à categoria selecionada.");
+    const created = await api.createTransaction(payload);
+    if (Array.isArray(created)) {
+      // múltiplas parcelas
+      setTxs(prev => [...created as any[], ...prev]);
+    } else {
+      setTxs(prev => [created as any, ...prev]);
     }
-    const created = await api.createTransaction(payload as any);
-    setTxs(prev => [created as any, ...prev]);
     setTx(s => ({...s, amount: ""}));
-    showToast("Custo lançado");
+    showToast(payload.installments > 1 ? "Parcelas lançadas" : "Custo lançado");
   }
 
   async function removeTx(id: number) {
@@ -141,12 +177,6 @@ export default function Page() {
     setTxs(prev => prev.filter(x => x.id !== id));
     showToast("Transação removida");
   }
-
-  const filteredTxs = txs.filter(t => {
-    if (filter === "all") return true;
-    const isIncome = (catById[t.category_id]?.kind === "income");
-    return filter === "in" ? isIncome : !isIncome;
-  });
 
   if (!token) {
     return (
@@ -167,47 +197,50 @@ export default function Page() {
     );
   }
 
-  const labels = (summary?.by_category || []).map(row => catById[row.category_id]?.name || String(row.category_id));
-  const values = (summary?.by_category || []).map(row => Math.abs(row.total || 0));
-  const barColors = labels.map((_, i) => i % 3 === 0 ? "rgba(99,102,241,.8)" : i % 3 === 1 ? "rgba(16,185,129,.8)" : "rgba(239,68,68,.8)");
-  const data = { labels, datasets: [{ label: "Despesas por categoria", data: values, backgroundColor: barColors }] };
-
-  const availableSubs = Number(tx.category_id) ? (subsByCat[Number(tx.category_id)] || []) : [];
-
   return (
     <div className="grid gap-6">
       {toast && <div className="toast">{toast}</div>}
 
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+      {/* Toolbar + Filters */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
         <div className="flex items-center gap-2">
-          <input type="month" className="input w-auto" value={month} onChange={e=>setMonth(e.target.value)} />
-          <span className="text-sm text-muted">Total:</span>
-          <span className="text-sm font-semibold text-expense">{summary ? formatBRL(summary.total) : "--"}</span>
+          <div className="grid gap-1">
+            <label className="label">Mês</label>
+            <input type="month" className="input w-auto" value={month} onChange={e=>setMonth(e.target.value)} />
+          </div>
         </div>
-        <div className="sm:ml-auto flex items-center gap-2">
+        <div className="grid gap-1">
+          <label className="label">Dia (opcional)</label>
+          <input type="date" className="input" value={filterDay} onChange={e=>setFilterDay(e.target.value)} />
+        </div>
+        <div className="grid gap-1">
+          <label className="label">Categoria</label>
+          <select className="select" value={filterCat} onChange={e=>{ const v=e.target.value; setFilterCat(v? Number(v):""); setFilterSub(""); }}>
+            <option value="">Todas</option>
+            {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="grid gap-1">
+          <label className="label">Subcategoria</label>
+          <select className="select" value={filterSub} onChange={e=>setFilterSub(e.target.value? Number(e.target.value):"")} disabled={!filterCat || (filterSubsAvail.length===0)}>
+            <option value="">Todas</option>
+            {filterSubsAvail.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div className="grid gap-1">
+          <label className="label">Tipo</label>
           <div className="inline-flex rounded-xl border border-[rgb(var(--border))] overflow-hidden">
             <button className={"px-3 py-1.5 text-sm transition " + (filter==="all" ? "bg-[rgb(var(--primary))] text-white" : "bg-[rgb(var(--card))] hover:bg-[rgb(var(--fg))]/5")} onClick={()=>setFilter("all")}>Tudo</button>
             <button className={"px-3 py-1.5 text-sm transition " + (filter==="out" ? "bg-[rgb(var(--primary))] text-white" : "bg-[rgb(var(--card))] hover:bg-[rgb(var(--fg))]/5")} onClick={()=>setFilter("out")}>Despesas</button>
             <button className={"px-3 py-1.5 text-sm transition " + (filter==="in" ? "bg-[rgb(var(--primary))] text-white" : "bg-[rgb(var(--card))] hover:bg-[rgb(var(--fg))]/5")} onClick={()=>setFilter("in")}>Receitas</button>
           </div>
-          <button onClick={logout} className="btn btn-outline">Sair</button>
         </div>
       </div>
-
-      {/* KPIs */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="kpi"><div className="hint">Categorias</div><div className="value">{cats.length}</div></div>
-        <div className="kpi"><div className="hint">Subcategorias</div><div className="value">{subs.length}</div></div>
-        <div className="kpi"><div className="hint">Transações</div><div className="value">{txs.length}</div></div>
-        <div className="kpi"><div className="hint">Mês</div><div className="value">{month}</div></div>
-      </section>
 
       {/* Gráfico */}
       <section className="card">
         <div className="card-header">
           <h3 className="card-title">Despesas por categoria</h3>
-          <span className="text-xs text-muted">{summary ? formatBRL(summary.total) : "--"}</span>
         </div>
         <div className="card-content">
           <div className="w-full md:max-w-3xl md:h-72">
@@ -219,48 +252,56 @@ export default function Page() {
       {/* Cadastro rápido */}
       <section className="grid md:grid-cols-3 gap-6">
         <div className="card">
-          <div className="card-header"><h3 className="card-title">Categorias (despesa)</h3></div>
+          <div className="card-header"><h3 className="card-title">Categorias/Subcategorias</h3></div>
           <div className="card-content">
             <div className="flex gap-2">
               <input className="input flex-1" placeholder="Ex.: Mercado" value={catName} onChange={e=>setCatName(e.target.value)} />
+              <button onClick={addCategory} className="btn btn-primary">Add</button>
             </div>
-            <button onClick={addCategory} className="btn btn-primary w-full mt-3">Adicionar</button>
-
-            <div className="mt-5">
-              <h4 className="text-sm font-semibold mb-2">Subcategorias</h4>
-              <div className="grid gap-2">
-                <select className="select" value={subParent} onChange={e=>setSubParent((e.target.value ? Number(e.target.value) : "") as any)}>
-                  <option value="">Categoria…</option>
-                  {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <div className="flex gap-2">
-                  <input className="input flex-1" placeholder="Ex.: Verduras" value={subName} onChange={e=>setSubName(e.target.value)} />
-                  <button onClick={addSubcategory} className="btn btn-primary">Add</button>
-                </div>
-                {subParent && (subsByCat[Number(subParent)] || []).length > 0 && (
-                  <ul className="mt-2 text-sm space-y-1 max-h-32 overflow-auto pr-1">
-                    {(subsByCat[Number(subParent)] || []).map(s => <li key={s.id} className="flex justify-between"><span>{s.name}</span></li>)}
-                  </ul>
-                )}
+            <div className="mt-4 grid gap-2">
+              <select className="select" value={subParent} onChange={e=>setSubParent((e.target.value ? Number(e.target.value) : "") as any)}>
+                <option value="">Categoria…</option>
+                {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <div className="flex gap-2">
+                <input className="input flex-1" placeholder="Ex.: Verduras" value={subName} onChange={e=>setSubName(e.target.value)} />
+                <button onClick={addSubcategory} className="btn btn-primary">Add</button>
               </div>
             </div>
           </div>
         </div>
 
         <div className="card md:col-span-2">
-          <div className="card-header"><h3 className="card-title">Lançar custo diário</h3></div>
+          <div className="card-header"><h3 className="card-title">Lançar custo</h3></div>
           <div className="card-content grid sm:grid-cols-2 gap-2">
             <select className="select" value={tx.category_id} onChange={e=>setTx(s=>({...s, category_id: e.target.value, subcategory_id: ""}))}>
               <option value="">Categoria…</option>
               {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <select className="select" value={tx.subcategory_id} onChange={e=>setTx(s=>({...s, subcategory_id: e.target.value}))} disabled={!Number(tx.category_id) || availableSubs.length === 0}>
+            <select className="select" value={tx.subcategory_id} onChange={e=>setTx(s=>({...s, subcategory_id: e.target.value}))} disabled={!Number(tx.category_id) || ( (subsByCat[Number(tx.category_id)]||[]).length === 0)}>
               <option value="">(opcional) Subcategoria…</option>
-              {availableSubs.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
+              {(subsByCat[Number(tx.category_id)] || []).map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
             </select>
             <input className="input" placeholder="Valor (ex.: 35,90)" value={tx.amount} onChange={e=>setTx(s=>({...s, amount: e.target.value}))}/>
             <input type="date" className="input" value={tx.date} onChange={e=>setTx(s=>({...s, date: e.target.value}))}/>
             <input className="input" placeholder="Observação" value={tx.note} onChange={e=>setTx(s=>({...s, note: e.target.value}))}/>
+
+            <div className="grid gap-1">
+              <label className="label">Forma de pagamento</label>
+              <select className="select" value={tx.payment_method} onChange={e=>setTx(s=>({...s, payment_method: e.target.value as any, installments: e.target.value==='card' ? Math.max(1, Number(s.installments||1)) : 1}))}>
+                <option value="cash">Dinheiro</option>
+                <option value="pix">PIX</option>
+                <option value="card">Cartão</option>
+              </select>
+            </div>
+
+            <div className="grid gap-1">
+              <label className="label">Parcelas</label>
+              <select className="select" value={tx.installments} onChange={e=>setTx(s=>({...s, installments: Number(e.target.value)}))} disabled={tx.payment_method !== 'card'}>
+                {Array.from({length:12}, (_,i)=>i+1).map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+
             <button onClick={addTx} className="btn btn-primary w-full sm:col-span-2">Adicionar</button>
           </div>
         </div>
@@ -276,13 +317,14 @@ export default function Page() {
                 <th className="py-2">Data</th>
                 <th>Categoria</th>
                 <th className="text-right">Valor</th>
+                <th>Pagamento</th>
                 <th>Obs.</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {loading && (<tr><td colSpan={5} className="py-6 text-center text-muted">Carregando…</td></tr>)}
-              {!loading && txs.map(t => (
+              {loading && (<tr><td colSpan={6} className="py-6 text-center text-muted">Carregando…</td></tr>)}
+              {!loading && filteredTxs.map(t => (
                 <tr key={t.id}>
                   <td className="py-2">{t.date}</td>
                   <td>
@@ -290,14 +332,19 @@ export default function Page() {
                     {t.subcategory_id ? <span className="text-muted"> / {(subs.find(s => s.id === t.subcategory_id)?.name || t.subcategory_id)}</span> : null}
                   </td>
                   <td className="text-right text-expense">{formatBRL(Math.abs(t.amount))}</td>
+                  <td className="text-xs">
+                    {t.payment_method === 'card' ? `Cartão ${t.installment_index}/${t.installments}`
+                      : t.payment_method === 'pix' ? 'PIX'
+                      : 'Dinheiro'}
+                  </td>
                   <td className="truncate max-w-xs">{t.note}</td>
                   <td className="text-right">
                     <button onClick={()=>removeTx(t.id)} className="text-[rgb(var(--danger))] hover:underline">Excluir</button>
                   </td>
                 </tr>
               ))}
-              {!loading && txs.length === 0 && (
-                <tr><td colSpan={5} className="py-6 text-center text-muted">Sem lançamentos ainda.</td></tr>
+              {!loading && filteredTxs.length === 0 && (
+                <tr><td colSpan={6} className="py-6 text-center text-muted">Sem lançamentos no filtro atual.</td></tr>
               )}
             </tbody>
           </table>
