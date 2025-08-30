@@ -2,15 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Paleta suave + CSS vars para facilitar tema */
+/* Paleta clara/escura (CSS variables) */
 :root{
-  --bg: 248 248 248;      /* #f8f8f8 */
-  --fg: 17 24 39;         /* slate-900 */
-  --muted: 107 114 128;   /* gray-500 */
+  --bg: 248 250 252;      /* slate-50 */
+  --fg: 15 23 42;         /* slate-900 */
+  --muted: 100 116 139;   /* slate-500 */
   --card: 255 255 255;    /* white */
-  --border: 229 231 235;  /* gray-200 */
-  --primary: 0 0 0;       /* black */
-  --ring: 0 0 0;          /* black for focus ring */
+  --border: 226 232 240;  /* slate-200 */
+  --primary: 67 56 202;   /* indigo-600 */
+  --primary-contrast: 255 255 255;
+  --accent: 16 185 129;   /* emerald-500 */
+  --danger: 239 68 68;    /* red-500 */
+  --ring: 67 56 202;
+}
+
+[data-theme="dark"]{
+  --bg: 2 6 23;           /* slate-950 */
+  --fg: 241 245 249;      /* slate-100 */
+  --muted: 148 163 184;   /* slate-400 */
+  --card: 15 23 42;       /* slate-900 */
+  --border: 30 41 59;     /* slate-800 */
+  --primary: 99 102 241;  /* indigo-500 */
+  --primary-contrast: 255 255 255;
+  --accent: 45 212 191;   /* teal/emerald */
+  --danger: 248 113 113;  /* red-400 */
+  --ring: 99 102 241;
 }
 
 @layer base {
@@ -24,12 +40,12 @@
   .card-title { @apply font-semibold; }
   .card-content { @apply p-4; }
 
-  .btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ring))]/10; }
-  .btn-primary { @apply bg-[rgb(var(--primary))] text-white hover:bg-black/90; }
-  .btn-outline { @apply border border-[rgb(var(--border))] hover:bg-black/5; }
+  .btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[.99] focus:outline-none focus:ring-2; }
+  .btn-primary { @apply bg-[rgb(var(--primary))] text-[rgb(var(--primary-contrast))] hover:opacity-90 focus:ring-[rgb(var(--ring))]/30; }
+  .btn-outline { @apply border border-[rgb(var(--border))] hover:bg-[rgb(var(--fg))]/5 focus:ring-[rgb(var(--ring))]/20; }
 
-  .input { @apply w-full rounded-xl border border-[rgb(var(--border))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--ring))]/10 bg-white; }
-  .select { @apply w-full rounded-xl border border-[rgb(var(--border))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--ring))]/10 bg-white; }
+  .input { @apply w-full rounded-xl border border-[rgb(var(--border))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--ring))]/20 bg-[rgb(var(--card))]; }
+  .select { @apply w-full rounded-xl border border-[rgb(var(--border))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--ring))]/20 bg-[rgb(var(--card))]; }
   .label { @apply text-xs font-medium text-[rgb(var(--muted))]; }
 
   .kpi { @apply card p-4; }
@@ -37,12 +53,15 @@
   .kpi .hint { @apply text-xs text-[rgb(var(--muted))]; }
 
   .navlink { @apply text-sm text-[rgb(var(--muted))] hover:text-[rgb(var(--fg))]; }
-
-  /* Toast simples */
-  .toast { @apply fixed left-1/2 -translate-x-1/2 bottom-5 z-50 px-4 py-2 rounded-xl text-sm shadow bg-black text-white; }
+  .toast { @apply fixed left-1/2 -translate-x-1/2 bottom-5 z-50 px-4 py-2 rounded-xl text-sm shadow bg-[rgb(var(--fg))] text-[rgb(var(--bg))]; }
 }
 
-/* Pequenos refinamentos */
+/* Tabela */
 table { @apply text-sm; }
 th { @apply font-medium text-[rgb(var(--muted))]; }
 tr + tr { @apply border-t border-[rgb(var(--border))]; }
+
+/* Cores utilitárias */
+.text-income { @apply text-[rgb(var(--accent))]; }
+.text-expense { @apply text-[rgb(var(--danger))]; }
+.bg-accent { @apply bg-[rgb(var(--accent))]; }

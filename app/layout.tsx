@@ -1,14 +1,27 @@
 export const metadata = {
   title: "Organizador Financeiro",
-  description: "Controle suas finanças com uma UI simples e bonita",
+  description: "Controle simples de custos diários",
 };
 
-// IMPORTANTE: carrega o Tailwind e estilos globais
 import "./globals.css";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Anti-FOUC de tema: seta data-theme antes da pintura
+  const initTheme = `
+  try {
+    const saved = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = saved || (prefersDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) {}
+  `;
+
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: initTheme }} />
+      </head>
       <body className="min-h-screen bg-bg text-fg">
         <div className="min-h-screen flex flex-col">
           <header className="sticky top-0 z-40 bg-card/80 backdrop-blur border-b border-border">
@@ -20,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <a href="/" className="navlink">Dashboard</a>
               <a href="/rates-demo" className="navlink hidden sm:inline">Cotações</a>
+              <ThemeToggle />
             </div>
           </header>
           <main className="flex-1">
