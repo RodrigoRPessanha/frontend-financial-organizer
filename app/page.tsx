@@ -7,7 +7,7 @@ import { useSession } from "../lib/useSession";
 import LoginCard from "../components/LoginCard";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js";
-import { forceLogout } from "../lib/forceLogout"; // ajuste caminho relativo quando necessário
+import ForceLogoutLink from "./components/ForceLogoutLink";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -162,12 +162,11 @@ export default function Page() {
     return (
       <div className="p-6 text-sm text-muted">
         Verificando sessão…
-        <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
-          Forçar sair
-        </button>
+        <ForceLogoutLink className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80" />
       </div>
     );
   }
+  
   if (!loggedIn) return <LoginCard />;
 
   return (

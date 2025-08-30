@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/useSession";
 import LoginCard from "../../components/LoginCard";
-import { forceLogout } from "../../lib/forceLogout"; // ajuste caminho relativo quando necessário
+import ForceLogoutLink from "../components/ForceLogoutLink";
 
 type Cat = { id: number; name: string; kind: "expense" | "income" };
 type Sub = { id: number; category_id: number; name: string };
@@ -45,12 +45,11 @@ export default function CategoriesPage(){
     return (
       <div className="p-6 text-sm text-muted">
         Verificando sessão…
-        <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
-          Forçar sair
-        </button>
+        <ForceLogoutLink className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80" />
       </div>
     );
   }
+
   if (!loggedIn) return <LoginCard />;
 
   async function addCategory(){
