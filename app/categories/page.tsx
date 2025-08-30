@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/useSession";
 import LoginCard from "../../components/LoginCard";
-import ForceLogoutLink from "../components/ForceLogoutLink";
+import ForceLogoutLink from "../../components/ForceLogoutLink";
 
 type Cat = { id: number; name: string; kind: "expense" | "income" };
 type Sub = { id: number; category_id: number; name: string };

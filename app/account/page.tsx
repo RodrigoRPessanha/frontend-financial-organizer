@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/useSession";
 import LoginCard from "../../components/LoginCard";
-import ForceLogoutLink from "../components/ForceLogoutLink";
+import ForceLogoutLink from "../../components/ForceLogoutLink";
 
 function getInitials(username?: string | null){
   if(!username) return "U";
