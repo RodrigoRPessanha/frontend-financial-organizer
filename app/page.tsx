@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "../lib/api";
+import { useSession } from "../lib/useSession";
+import LoginCard from "../components/LoginCard";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -23,36 +25,20 @@ function formatDateBR(dateStr: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(dt);
 }
 
-function useAuth() {
-  const [token, setToken] = useState<string | null>(null);
-  useEffect(() => { setToken(localStorage.getItem("token")); }, []);
-  function logout(){
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    location.reload();
-  }
-  return { token, logout, setToken };
-}
-
 export default function Page() {
-  const { token, logout, setToken } = useAuth();
-  const [hasUser, setHasUser] = useState<boolean | null>(null);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const { loggedIn, loading } = useSession();
 
   const [cats, setCats] = useState<Cat[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
   const [accs, setAccs] = useState<Acc[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
   const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7));
   const [filterCat, setFilterCat] = useState<number | "">("");
   const [filterSub, setFilterSub] = useState<number | "">("");
   const [filterDay, setFilterDay] = useState<string>("");
-
-  // NEW: filtro apenas para o gráfico
   const [payChart, setPayChart] = useState<""|"cash"|"pix"|"card"|"vr">("");
 
   const [catName, setCatName] = useState("");
@@ -60,7 +46,6 @@ export default function Page() {
   const [subParent, setSubParent] = useState<number | "">("");
 
   const [tx, setTx] = useState({category_id: "", subcategory_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: "", payment_method: "cash", installments: 1});
-  const [filter, setFilter] = useState<"all"|"in"|"out">("all"); // se você já removeu, pode apagar este state e o seu uso
 
   const catById = useMemo(() => Object.fromEntries(cats.map(c => [c.id, c])), [cats]);
   const subsByCat = useMemo(() => {
@@ -69,31 +54,12 @@ export default function Page() {
     return m;
   }, [subs]);
 
-  function showToast(msg: string) {
-    setToast(msg); setTimeout(() => setToast(null), 1800);
-  }
+  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 1800); }
 
+  // Carrega dados
   useEffect(() => {
-    (async () => {
-      try { await api.listCategories(); setHasUser(true); }
-      catch { setHasUser(false); }
-    })();
-  }, [token]);
-
-  async function handleRegisterOrLogin(mode: "register" | "login") {
-    try {
-      const r = await (mode === "register" ? api.register({ username, password }) : api.login({ username, password }));
-      localStorage.setItem("token", r.token);
-      localStorage.setItem("username", username);
-      setToken(r.token);
-      showToast(mode === "register" ? "Conta criada!" : "Login feito!");
-      setTimeout(() => location.reload(), 300);
-    } catch (e:any) { alert(e.message || "erro"); }
-  }
-
-  useEffect(() => {
-    if (!token) return;
-    setLoading(true);
+    if (!loggedIn) return;
+    setLoadingData(true);
     (async () => {
       const [c, a, t, s] = await Promise.all([api.listCategories(), api.listAccounts(), api.listTransactions(), api.listSubcategories()]);
       let accounts = a as any[];
@@ -106,8 +72,8 @@ export default function Page() {
       setTxs(t as any);
       setSubs(s as any);
       setTx(x => ({...x, category_id: (c as any[])[0]?.id || ""}));
-    })().finally(() => setLoading(false));
-  }, [token]);
+    })().finally(() => setLoadingData(false));
+  }, [loggedIn]);
 
   const availableSubs = Number(tx.category_id) ? (subsByCat[Number(tx.category_id)] || []) : [];
   const filterSubsAvail = filterCat ? (subsByCat[Number(filterCat)] || []) : [];
@@ -118,14 +84,9 @@ export default function Page() {
       if (filterDay && t.date !== filterDay) return false;
       if (filterCat && t.category_id !== Number(filterCat)) return false;
       if (filterSub && (t.subcategory_id || null) !== Number(filterSub)) return false;
-      if (filter !== "all") {
-        const isIncome = (catById[t.category_id]?.kind === "income");
-        if (filter === "in" && !isIncome) return false;
-        if (filter === "out" && isIncome) return false;
-      }
       return true;
     });
-  }, [txs, month, filterDay, filterCat, filterSub, filter, catById]);
+  }, [txs, month, filterDay, filterCat, filterSub]);
 
   // Chart-only filter by payment method
   const chartSource = useMemo(() => {
@@ -188,30 +149,20 @@ export default function Page() {
     showToast("Transação removida");
   }
 
-  if (!token) {
-    return (
-      <div className="max-w-md mx-auto mt-6">
-        <div className="card p-6">
-          <h2 className="text-xl font-semibold mb-1">{hasUser ? "Entrar" : "Criar sua conta"}</h2>
-          <p className="text-sm text-muted mb-4">{hasUser ? "Use seu usuário e senha" : "Primeiro usuário do sistema"}</p>
-          <label className="label">Usuário</label>
-          <input className="input mb-3" placeholder="seu_usuario" value={username} onChange={e=>setUsername(e.target.value)} />
-          <label className="label">Senha</label>
-          <input type="password" className="input mb-4" placeholder="Sua senha" value={password} onChange={e=>setPassword(e.target.value)} />
-          <div className="flex gap-2">
-            {!hasUser && <button onClick={()=>handleRegisterOrLogin("register")} className="btn btn-primary w-full">Criar conta</button>}
-            <button onClick={()=>handleRegisterOrLogin("login")} className="btn btn-outline w-full">Entrar</button>
-          </div>
-        </div>
-      </div>
-    );
+  async function logout() {
+    try { await api.logout(); } catch {}
+    localStorage.removeItem("username");
+    location.reload();
   }
+
+  if (loading) return <div className="p-6 text-sm text-muted">Verificando sessão…</div>;
+  if (!loggedIn) return <LoginCard />;
 
   return (
     <div className="grid gap-6">
       {toast && <div className="toast">{toast}</div>}
 
-      {/* Filtros em uma linha (inclui filtro do gráfico por pagamento) */}
+      {/* Filtros */}
       <div className="flex items-end gap-3 overflow-x-auto whitespace-nowrap pb-2 -mx-1 px-1">
         <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Mês</label>
@@ -235,10 +186,8 @@ export default function Page() {
             {(subsByCat[Number(filterCat)] || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-
-        {/* NOVO: filtro do gráfico por método de pagamento */}
         <div className="flex flex-col gap-1 shrink-0">
-          <label className="label">Pagamento</label>
+          <label className="label">Gráfico · Pagamento</label>
           <select className="select w-[180px]" value={payChart} onChange={e=>setPayChart(e.target.value as any)}>
             <option value="">Todos</option>
             <option value="cash">Dinheiro</option>
@@ -248,7 +197,9 @@ export default function Page() {
           </select>
         </div>
 
-        <button className="btn btn-outline shrink-0" onClick={() => { setFilterDay(""); setFilterCat(""); setFilterSub(""); setPayChart(""); }} title="Limpar filtros">Limpar</button>
+        <Link href="/categories" className="btn btn-outline shrink-0">Categorias</Link>
+        <Link href="/account" className="btn btn-outline shrink-0">Conta</Link>
+        <button className="btn btn-outline shrink-0" onClick={logout}>Sair</button>
       </div>
 
       {/* Gráfico */}
@@ -338,8 +289,8 @@ export default function Page() {
               </tr>
             </thead>
             <tbody>
-              {loading && (<tr><td colSpan={6} className="py-6 text-center text-muted">Carregando…</td></tr>)}
-              {!loading && filteredTxs.map(t => (
+              {loadingData && (<tr><td colSpan={6} className="py-6 text-center text-muted">Carregando…</td></tr>)}
+              {!loadingData && filteredTxs.map(t => (
                 <tr key={t.id}>
                   <td className="py-2">{formatDateBR(t.date)}</td>
                   <td>
@@ -359,7 +310,7 @@ export default function Page() {
                   </td>
                 </tr>
               ))}
-              {!loading && filteredTxs.length === 0 && (
+              {!loadingData && filteredTxs.length === 0 && (
                 <tr><td colSpan={6} className="py-6 text-center text-muted">Sem lançamentos no filtro atual.</td></tr>
               )}
             </tbody>

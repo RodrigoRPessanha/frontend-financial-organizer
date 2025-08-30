@@ -2,57 +2,18 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
+import { useSession } from "../../lib/useSession";
+import LoginCard from "../../components/LoginCard";
 
 type Cat = { id: number; name: string; kind: "expense" | "income" };
 type Sub = { id: number; category_id: number; name: string };
 
-function useAuth(){
-  const [token, setToken] = useState<string | null>(null);
-  useEffect(() => { setToken(localStorage.getItem("token")); }, []);
-  return { token, setToken };
-}
-
-function LoginCard(){
-  const [hasUser, setHasUser] = useState<boolean | null>(null);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-
-  useEffect(() => { api.listCategories().then(()=>setHasUser(true)).catch(()=>setHasUser(false)); }, []);
-
-  async function submit(mode: "register"|"login"){
-    try{
-      const r = await (mode === "register" ? api.register({ username, password }) : api.login({ username, password }));
-      localStorage.setItem("token", r.token);
-      localStorage.setItem("username", username);
-      location.reload();
-    }catch(e:any){ alert(e.message || "erro"); }
-  }
-
-  return (
-    <div className="max-w-md mx-auto mt-6">
-      <div className="card p-6">
-        <h2 className="text-xl font-semibold mb-1">{hasUser ? "Entrar" : "Criar sua conta"}</h2>
-        <p className="text-sm text-muted mb-4">{hasUser ? "Use seu usuário e senha" : "Primeiro usuário do sistema"}</p>
-        <label className="label">Usuário</label>
-        <input className="input mb-3" placeholder="seu_usuario" value={username} onChange={e=>setUsername(e.target.value)} />
-        <label className="label">Senha</label>
-        <input type="password" className="input mb-4" placeholder="Sua senha" value={password} onChange={e=>setPassword(e.target.value)} />
-        <div className="flex gap-2">
-          {!hasUser && <button onClick={()=>submit("register")} className="btn btn-primary w-full">Criar conta</button>}
-          <button onClick={()=>submit("login")} className="btn btn-outline w-full">Entrar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function CategoriesPage(){
-  const { token } = useAuth();
+  const { loggedIn, loading } = useSession();
   const [cats, setCats] = useState<Cat[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
-
   const [newCat, setNewCat] = useState("");
   const [newSub, setNewSub] = useState("");
   const [newSubParent, setNewSubParent] = useState<number | "">("");
@@ -62,22 +23,24 @@ export default function CategoriesPage(){
 
   const subsByCat = useMemo(() => {
     const m: Record<number, Sub[]> = {};
-    for (const s of subs) { (m[s.category_id] ||= []).push(s); }
+    for (const s of subs) (m[s.category_id] ||= []).push(s);
     return m;
   }, [subs]);
 
   function showToast(msg: string){ setToast(msg); setTimeout(()=>setToast(null), 1600); }
 
   useEffect(() => {
-    if (!token) return;
+    if (!loggedIn) return;
     (async () => {
-      setLoading(true);
+      setLoadingData(true);
       const [c, s] = await Promise.all([api.listCategories(), api.listSubcategories()]);
-      setCats(c as any); setSubs(s as any); setLoading(false);
+      setCats(c as any); setSubs(s as any);
+      setLoadingData(false);
     })();
-  }, [token]);
+  }, [loggedIn]);
 
-  if (!token) return <LoginCard />;
+  if (loading) return <div className="p-6 text-sm text-muted">Verificando sessão…</div>;
+  if (!loggedIn) return <LoginCard />;
 
   async function addCategory(){
     if(!newCat.trim()) return;
@@ -138,9 +101,9 @@ export default function CategoriesPage(){
       <section className="card">
         <div className="card-header"><h3 className="card-title">Lista</h3></div>
         <div className="card-content">
-          {loading && <p className="text-muted">Carregando…</p>}
-          {!loading && cats.length === 0 && <p className="text-muted">Sem categorias ainda.</p>}
-          {!loading && cats.length > 0 && (
+          {loadingData && <p className="text-muted">Carregando…</p>}
+          {!loadingData && cats.length === 0 && <p className="text-muted">Sem categorias ainda.</p>}
+          {!loadingData && cats.length > 0 && (
             <ul className="space-y-4">
               {cats.map(cat => (
                 <li key={cat.id} className="rounded-xl border border-[rgb(var(--border))] bg-card p-3">
