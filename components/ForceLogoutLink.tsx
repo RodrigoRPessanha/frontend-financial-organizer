@@ -4,8 +4,7 @@ import React from "react";
 type Props = { className?: string; children?: React.ReactNode };
 
 export default function ForceLogoutLink({ className, children = "Forçar sair" }: Props) {
-  const base = process.env.NEXT_PUBLIC_API_URL || "";
-  // href padrão (sem next) para SSR; no click, atualizamos com ?next=origin
+  const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
   const hrefDefault = `${base}/auth/logout`;
   return (
     <a
