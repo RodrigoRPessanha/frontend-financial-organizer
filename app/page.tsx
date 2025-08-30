@@ -50,7 +50,6 @@ export default function Page() {
   const [subParent, setSubParent] = useState<number | "">("");
 
   const [tx, setTx] = useState({category_id: "", subcategory_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: "", payment_method: "cash", installments: 1}); // NEW
-  const [filter, setFilter] = useState<"all"|"in"|"out">("all");
 
   const catById = useMemo(() => Object.fromEntries(cats.map(c => [c.id, c])), [cats]);
   const subsByCat = useMemo(() => {
@@ -107,19 +106,15 @@ export default function Page() {
 
   // Apply filters to transactions for table + chart
   const filteredTxs = useMemo(() => {
-    return txs.filter(t => {
-      if (month && monthOf(t.date) !== month) return false;                // month filter
-      if (filterDay && t.date !== filterDay) return false;                 // day filter (optional)
-      if (filterCat && t.category_id !== Number(filterCat)) return false;  // category filter
-      if (filterSub && (t.subcategory_id || null) !== Number(filterSub)) return false; // subcategory filter
-      if (filter !== "all") {
-        const isIncome = (catById[t.category_id]?.kind === "income");
-        if (filter === "in" && !isIncome) return false;
-        if (filter === "out" && isIncome) return false;
-      }
-      return true;
-    });
-  }, [txs, month, filterDay, filterCat, filterSub, filter, catById]);
+  return txs.filter(t => {
+    if (month && monthOf(t.date) !== month) return false;
+    if (filterDay && t.date !== filterDay) return false;
+    if (filterCat && t.category_id !== Number(filterCat)) return false;
+    if (filterSub && (t.subcategory_id || null) !== Number(filterSub)) return false;
+    return true;
+  });
+}, [txs, month, filterDay, filterCat, filterSub]);
+
 
   // Chart derived from filteredTxs
   const chartAgg = useMemo(() => {
@@ -201,40 +196,62 @@ export default function Page() {
     <div className="grid gap-6">
       {toast && <div className="toast">{toast}</div>}
 
-      {/* Toolbar + Filters */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
-        <div className="flex items-center gap-2">
-          <div className="grid gap-1">
-            <label className="label">Mês</label>
-            <input type="month" className="input w-auto" value={month} onChange={e=>setMonth(e.target.value)} />
-          </div>
+      {/* Filtros em uma linha */}
+      <div className="flex items-end gap-3 overflow-x-auto whitespace-nowrap pb-2 -mx-1 px-1">
+        <div className="flex flex-col gap-1 shrink-0">
+          <label className="label">Mês</label>
+          <input
+            type="month"
+            className="input w-[170px]"
+            value={month}
+            onChange={e=>setMonth(e.target.value)}
+          />
         </div>
-        <div className="grid gap-1">
+
+        <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Dia (opcional)</label>
-          <input type="date" className="input" value={filterDay} onChange={e=>setFilterDay(e.target.value)} />
+          <input
+            type="date"
+            className="input w-[160px]"
+            value={filterDay}
+            onChange={e=>setFilterDay(e.target.value)}
+          />
         </div>
-        <div className="grid gap-1">
+
+        <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Categoria</label>
-          <select className="select" value={filterCat} onChange={e=>{ const v=e.target.value; setFilterCat(v? Number(v):""); setFilterSub(""); }}>
+          <select
+            className="select w-[220px]"
+            value={filterCat}
+            onChange={e=>{ const v=e.target.value; setFilterCat(v? Number(v):""); setFilterSub(""); }}
+          >
             <option value="">Todas</option>
             {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-        <div className="grid gap-1">
+
+        <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Subcategoria</label>
-          <select className="select" value={filterSub} onChange={e=>setFilterSub(e.target.value? Number(e.target.value):"")} disabled={!filterCat || (filterSubsAvail.length===0)}>
+          <select
+            className="select w-[220px]"
+            value={filterSub}
+            onChange={e=>setFilterSub(e.target.value? Number(e.target.value):"")}
+            disabled={!filterCat || ( (subsByCat[Number(filterCat)]||[]).length===0 )}
+          >
             <option value="">Todas</option>
-            {filterSubsAvail.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {(subsByCat[Number(filterCat)] || []).map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
           </select>
         </div>
-        <div className="grid gap-1">
-          <label className="label">Tipo</label>
-          <div className="inline-flex rounded-xl border border-[rgb(var(--border))] overflow-hidden">
-            <button className={"px-3 py-1.5 text-sm transition " + (filter==="all" ? "bg-[rgb(var(--primary))] text-white" : "bg-[rgb(var(--card))] hover:bg-[rgb(var(--fg))]/5")} onClick={()=>setFilter("all")}>Tudo</button>
-            <button className={"px-3 py-1.5 text-sm transition " + (filter==="out" ? "bg-[rgb(var(--primary))] text-white" : "bg-[rgb(var(--card))] hover:bg-[rgb(var(--fg))]/5")} onClick={()=>setFilter("out")}>Despesas</button>
-            <button className={"px-3 py-1.5 text-sm transition " + (filter==="in" ? "bg-[rgb(var(--primary))] text-white" : "bg-[rgb(var(--card))] hover:bg-[rgb(var(--fg))]/5")} onClick={()=>setFilter("in")}>Receitas</button>
-          </div>
-        </div>
+
+        <button
+          className="btn btn-outline shrink-0"
+          onClick={() => { setFilterDay(""); setFilterCat(""); setFilterSub(""); }}
+          title="Limpar filtros"
+        >
+          Limpar
+        </button>
       </div>
 
       {/* Gráfico */}
@@ -316,7 +333,7 @@ export default function Page() {
               <tr className="text-left">
                 <th className="py-2">Data</th>
                 <th>Categoria</th>
-                <th className="text-right">Valor</th>
+                <th className="py-2">Valor</th>
                 <th>Pagamento</th>
                 <th>Obs.</th>
                 <th></th>
@@ -331,7 +348,7 @@ export default function Page() {
                     {catById[t.category_id]?.name || t.category_id}
                     {t.subcategory_id ? <span className="text-muted"> / {(subs.find(s => s.id === t.subcategory_id)?.name || t.subcategory_id)}</span> : null}
                   </td>
-                  <td className="text-right text-expense">{formatBRL(Math.abs(t.amount))}</td>
+                  <td className="text-expense">{formatBRL(Math.abs(t.amount))}</td>
                   <td className="text-xs">
                     {t.payment_method === 'card' ? `Cartão ${t.installment_index}/${t.installments}`
                       : t.payment_method === 'pix' ? 'PIX'
