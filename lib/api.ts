@@ -36,19 +36,23 @@ export const api = {
   listCategories: () => http<any[]>("/categories"),
   createCategory: (payload: {name: string; kind: "expense" | "income"}) =>
     http("/categories", { method: "POST", body: JSON.stringify(payload)}),
+  updateCategory: (id: number, payload: {name: string}) =>
+    http(`/categories/${id}`, { method: "PUT", body: JSON.stringify(payload)}),
 
   // Subcategories
   listSubcategories: (category_id?: number) =>
     http<any[]>(category_id ? `/subcategories?category_id=${category_id}` : "/subcategories"),
   createSubcategory: (payload: {category_id: number; name: string}) =>
     http("/subcategories", { method: "POST", body: JSON.stringify(payload)}),
+  updateSubcategory: (id: number, payload: {name: string; category_id?: number}) =>
+    http(`/subcategories/${id}`, { method: "PUT", body: JSON.stringify(payload)}),
 
   // Accounts
   listAccounts: () => http<any[]>("/accounts"),
   createAccount: (payload: {name: string; type: string}) =>
     http("/accounts", { method: "POST", body: JSON.stringify(payload)}),
 
-  // Transactions
+  // Transactions (com pagamentos/parcelas se seu backend já tem)
   listTransactions: () => http<any[]>("/transactions"),
   createTransaction: (payload: {account_id: number; category_id: number; subcategory_id?: number; amount: number; date: string; note?: string; payment_method?: "cash"|"pix"|"card"; installments?: number}) =>
     http<any>("/transactions", { method: "POST", body: JSON.stringify(payload)}),
@@ -58,11 +62,9 @@ export const api = {
     return true;
   },
 
-  // Summary (optional, para quem usa a página antiga que exibia gráficos pelo endpoint)
+  // Extras
   summaryMonth: (month: string) =>
     http<{month: string; total: number; by_category: {category_id: number; total: number}[]; by_subcategory?: {category_id:number; subcategory_id:number; total:number}[] }>(`/summary/month?month=${encodeURIComponent(month)}`),
-
-  // Account tools
   deleteAccount: async () => {
     const res = await fetch(`${API_URL}/account`, { method: "DELETE", headers: { ...authHeaders() }});
     if (!res.ok) throw new Error(await res.text());
