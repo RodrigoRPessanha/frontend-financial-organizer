@@ -63,10 +63,11 @@ export default function Page() {
     if (!loggedIn) return;
     setLoadingData(true);
     (async () => {
-      const [c, a, t, s] = await Promise.all([api.listCategories(), api.listAccounts(), api.listTransactions(), api.listSubcategories()]);
-      let accounts = a as any[];
+      const [c, a, t, s] = await Promise.all([api.listCategories() as Promise<Cat[]>,api.listAccounts() as Promise<Acc[]>,api.listTransactions() as Promise<Tx[]>,api.listSubcategories() as Promise<Sub[]>]);
+
+      let accounts = a; // agora 'a' já é Acc[]
       if (accounts.length === 0) {
-        const created = await api.createAccount({ name: "Pessoal", type: "other" }) as any;
+        const created = await api.createAccount({ name: "Pessoal", type: "other" });
         accounts = [created];
       }
       setAccs(accounts as any);
