@@ -7,7 +7,6 @@ import "./globals.css";
 import ThemeToggle from "../components/ThemeToggle";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // Anti-FOUC de tema: seta data-theme antes da pintura
   const initTheme = `
   try {
     const saved = localStorage.getItem('theme');
@@ -33,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <a href="/" className="navlink">Dashboard</a>
               <a href="/rates-demo" className="navlink hidden sm:inline">Cotações</a>
+              <a href="/account" className="navlink">Conta</a>
               <ThemeToggle />
             </div>
           </header>
