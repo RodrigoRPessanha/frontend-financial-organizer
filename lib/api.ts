@@ -9,13 +9,12 @@ async function http<T>(path: string, init: RequestInit = {}) {
   }
   const res = await fetch(base + path, {
     ...init,
-    headers,
     credentials: "include",
     mode: "cors",
+    headers: init.body
+      ? new Headers({ "Content-Type": "application/json", ...(init.headers || {}) })
+      : init.headers,
   });
-  if (!res.ok) throw new Error((await res.text()) || res.statusText);
-  const ct = res.headers.get("content-type") || "";
-  return (ct.includes("application/json") ? res.json() : (res as any).blob()) as Promise<T>;
 }
 
 export const api = {
