@@ -31,6 +31,7 @@ export default function Page() {
   const [accs, setAccs] = useState<Acc[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
 
   const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7));
   const [summary, setSummary] = useState<{ total: number; by_category: {category_id: number; total: number}[] } | null>(null);
@@ -47,28 +48,28 @@ export default function Page() {
   const catById = useMemo(() => Object.fromEntries(cats.map(c => [c.id, c])), [cats]);
   const accById = useMemo(() => Object.fromEntries(accs.map(a => [a.id, a])), [accs]);
 
-  // Detecta se há usuário e token válido
   useEffect(() => {
     (async () => {
-      try {
-        await api.listCategories();
-        setHasUser(true);
-      } catch {
-        setHasUser(false);
-      }
+      try { await api.listCategories(); setHasUser(true); }
+      catch { setHasUser(false); }
     })();
   }, [token]);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 1800);
+  }
 
   async function handleRegisterOrLogin(mode: "register" | "login") {
     try {
       const r = await (mode === "register" ? api.register({ email, password }) : api.login({ email, password }));
       localStorage.setItem("token", r.token);
       setToken(r.token);
-      location.reload();
+      showToast(mode === "register" ? "Conta criada!" : "Login feito!");
+      setTimeout(() => location.reload(), 300);
     } catch (e:any) { alert(e.message || "erro"); }
   }
 
-  // carrega dados
   useEffect(() => {
     if (!token) return;
     setLoading(true);
@@ -90,14 +91,14 @@ export default function Page() {
     if(!catName.trim()) return;
     const created = await api.createCategory({ name: catName.trim(), kind: catKind });
     setCats(prev => [...prev, created as any]);
-    setCatName("");
+    setCatName(""); showToast("Categoria adicionada");
   }
 
   async function addAccount() {
     if(!accName.trim()) return;
     const created = await api.createAccount({ name: accName.trim(), type: accType });
     setAccs(prev => [...prev, created as any]);
-    setAccName("");
+    setAccName(""); showToast("Conta adicionada");
   }
 
   async function addTx() {
@@ -112,14 +113,15 @@ export default function Page() {
     const created = await api.createTransaction(payload as any);
     setTxs(prev => [created as any, ...prev]);
     setTx(s => ({...s, amount: ""}));
+    showToast("Transação adicionada");
   }
 
   async function removeTx(id: number) {
     await api.deleteTransaction(id);
     setTxs(prev => prev.filter(x => x.id !== id));
+    showToast("Transação removida");
   }
 
-  // Filtragem simples (apenas exibição)
   const filteredTxs = txs.filter(t => {
     if (filter === "all") return true;
     const isIncome = (catById[t.category_id]?.kind === "income");
@@ -131,39 +133,40 @@ export default function Page() {
       <div className="max-w-md mx-auto mt-6">
         <div className="card p-6">
           <h2 className="text-xl font-semibold mb-1">{hasUser ? "Entrar" : "Criar sua conta"}</h2>
-          <p className="text-sm text-gray-600 mb-4">{hasUser ? "Use seu e-mail e senha" : "Primeiro usuário do sistema"}</p>
+          <p className="text-sm text-muted mb-4">{hasUser ? "Use seu e-mail e senha" : "Primeiro usuário do sistema"}</p>
           <label className="label">E-mail</label>
           <input className="input mb-3" placeholder="voce@email.com" value={email} onChange={e=>setEmail(e.target.value)} />
           <label className="label">Senha</label>
           <input type="password" className="input mb-4" placeholder="Sua senha" value={password} onChange={e=>setPassword(e.target.value)} />
           <div className="flex gap-2">
-            {!hasUser && <button onClick={()=>handleRegisterOrLogin("register")} className="btn btn-primary">Criar conta</button>}
-            <button onClick={()=>handleRegisterOrLogin("login")} className="btn btn-outline">Entrar</button>
+            {!hasUser && <button onClick={()=>handleRegisterOrLogin("register")} className="btn btn-primary w-full">Criar conta</button>}
+            <button onClick={()=>handleRegisterOrLogin("login")} className="btn btn-outline w-full">Entrar</button>
           </div>
         </div>
       </div>
     );
   }
 
-  // Chart data
   const labels = (summary?.by_category || []).map(row => catById[row.category_id]?.name || String(row.category_id));
   const values = (summary?.by_category || []).map(row => row.total || 0);
   const data = { labels, datasets: [{ label: "Total por categoria", data: values }] };
 
   return (
     <div className="grid gap-6">
+      {toast && <div className="toast">{toast}</div>}
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
         <div className="flex items-center gap-2">
           <input type="month" className="input w-auto" value={month} onChange={e=>setMonth(e.target.value)} />
-          <span className="text-sm text-gray-600">Total:</span>
+          <span className="text-sm text-muted">Total:</span>
           <span className="text-sm font-semibold">{summary ? formatBRL(summary.total) : "--"}</span>
         </div>
         <div className="sm:ml-auto flex items-center gap-2">
-          <div className="inline-flex rounded-xl border overflow-hidden">
-            <button className={"px-3 py-1.5 text-sm " + (filter==="all" ? "bg-black text-white" : "bg-white")} onClick={()=>setFilter("all")}>Tudo</button>
-            <button className={"px-3 py-1.5 text-sm " + (filter==="in" ? "bg-black text-white" : "bg-white")} onClick={()=>setFilter("in")}>Receitas</button>
-            <button className={"px-3 py-1.5 text-sm " + (filter==="out" ? "bg-black text-white" : "bg-white")} onClick={()=>setFilter("out")}>Despesas</button>
+          <div className="inline-flex rounded-xl border border-[rgb(var(--border))] overflow-hidden">
+            <button className={"px-3 py-1.5 text-sm transition " + (filter==="all" ? "bg-black text-white" : "bg-white hover:bg-black/5")} onClick={()=>setFilter("all")}>Tudo</button>
+            <button className={"px-3 py-1.5 text-sm transition " + (filter==="in" ? "bg-black text-white" : "bg-white hover:bg-black/5")} onClick={()=>setFilter("in")}>Receitas</button>
+            <button className={"px-3 py-1.5 text-sm transition " + (filter==="out" ? "bg-black text-white" : "bg-white hover:bg-black/5")} onClick={()=>setFilter("out")}>Despesas</button>
           </div>
           <button onClick={logout} className="btn btn-outline">Sair</button>
         </div>
@@ -171,32 +174,20 @@ export default function Page() {
 
       {/* KPIs */}
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="kpi">
-          <div className="hint">Categorias</div>
-          <div className="value">{cats.length}</div>
-        </div>
-        <div className="kpi">
-          <div className="hint">Contas</div>
-          <div className="value">{accs.length}</div>
-        </div>
-        <div className="kpi">
-          <div className="hint">Transações</div>
-          <div className="value">{txs.length}</div>
-        </div>
-        <div className="kpi">
-          <div className="hint">Mês</div>
-          <div className="value">{month}</div>
-        </div>
+        <div className="kpi"><div className="hint">Categorias</div><div className="value">{cats.length}</div></div>
+        <div className="kpi"><div className="hint">Contas</div><div className="value">{accs.length}</div></div>
+        <div className="kpi"><div className="hint">Transações</div><div className="value">{txs.length}</div></div>
+        <div className="kpi"><div className="hint">Mês</div><div className="value">{month}</div></div>
       </section>
 
       {/* Gráfico */}
       <section className="card">
         <div className="card-header">
           <h3 className="card-title">Resumo por categoria</h3>
-          <span className="text-xs text-gray-500">{summary ? formatBRL(summary.total) : "--"}</span>
+          <span className="text-xs text-muted">{summary ? formatBRL(summary.total) : "--"}</span>
         </div>
         <div className="card-content">
-          <div className="w-full md:max-w-3xl">
+          <div className="w-full md:max-w-3xl md:h-72">
             <Bar data={data} />
           </div>
         </div>
@@ -215,8 +206,8 @@ export default function Page() {
               </select>
             </div>
             <button onClick={addCategory} className="btn btn-primary w-full mt-3">Adicionar</button>
-            <ul className="mt-3 text-sm text-gray-700 space-y-1 max-h-40 overflow-auto pr-1">
-              {cats.map(c => <li key={c.id} className="flex justify-between"><span>{c.name}</span><span className="text-gray-400">({c.kind})</span></li>)}
+            <ul className="mt-3 text-sm text-[rgb(var(--fg))] space-y-1 max-h-40 overflow-auto pr-1">
+              {cats.map(c => <li key={c.id} className="flex justify-between"><span>{c.name}</span><span className="text-muted">({c.kind})</span></li>)}
             </ul>
           </div>
         </div>
@@ -235,8 +226,8 @@ export default function Page() {
               </select>
             </div>
             <button onClick={addAccount} className="btn btn-primary w-full mt-3">Adicionar</button>
-            <ul className="mt-3 text-sm text-gray-700 space-y-1 max-h-40 overflow-auto pr-1">
-              {accs.map(a => <li key={a.id} className="flex justify-between"><span>{a.name}</span><span className="text-gray-400">({a.type})</span></li>)}
+            <ul className="mt-3 text-sm text-[rgb(var(--fg))] space-y-1 max-h-40 overflow-auto pr-1">
+              {accs.map(a => <li key={a.id} className="flex justify-between"><span>{a.name}</span><span className="text-muted">({a.type})</span></li>)}
             </ul>
           </div>
         </div>
@@ -264,9 +255,9 @@ export default function Page() {
       <section className="card">
         <div className="card-header"><h3 className="card-title">Transações</h3></div>
         <div className="card-content overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full">
             <thead>
-              <tr className="text-left text-gray-500">
+              <tr className="text-left">
                 <th className="py-2">Data</th>
                 <th>Conta</th>
                 <th>Categoria</th>
@@ -276,11 +267,9 @@ export default function Page() {
               </tr>
             </thead>
             <tbody>
-              {loading && (
-                <tr><td colSpan={6} className="py-6 text-center text-gray-500">Carregando…</td></tr>
-              )}
+              {loading && (<tr><td colSpan={6} className="py-6 text-center text-muted">Carregando…</td></tr>)}
               {!loading && filteredTxs.map(t => (
-                <tr key={t.id} className="border-t">
+                <tr key={t.id}>
                   <td className="py-2">{t.date}</td>
                   <td>{accById[t.account_id]?.name || t.account_id}</td>
                   <td>{catById[t.category_id]?.name || t.category_id}</td>
@@ -294,7 +283,7 @@ export default function Page() {
                 </tr>
               ))}
               {!loading && filteredTxs.length === 0 && (
-                <tr><td colSpan={6} className="py-6 text-center text-gray-500">Sem transações ainda.</td></tr>
+                <tr><td colSpan={6} className="py-6 text-center text-muted">Sem transações ainda.</td></tr>
               )}
             </tbody>
           </table>
