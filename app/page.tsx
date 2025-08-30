@@ -17,7 +17,11 @@ function formatBRL(v: number) {
 function useAuth() {
   const [token, setToken] = useState<string | null>(null);
   useEffect(() => { setToken(localStorage.getItem("token")); }, []);
-  function logout(){ localStorage.removeItem("token"); location.reload(); }
+  function logout(){
+    localStorage.removeItem("token");
+    localStorage.removeItem("email"); // NEW: limpa o e-mail ao sair
+    location.reload();
+  }
   return { token, logout, setToken };
 }
 
@@ -59,7 +63,9 @@ export default function Page() {
     try {
       const r = await (mode === "register" ? api.register({ email, password }) : api.login({ email, password }));
       localStorage.setItem("token", r.token);
-      setToken(r.token); showToast(mode === "register" ? "Conta criada!" : "Login feito!");
+      localStorage.setItem("email", email); // NEW: salva o e-mail ao logar/registrar
+      setToken(r.token);
+      showToast(mode === "register" ? "Conta criada!" : "Login feito!");
       setTimeout(() => location.reload(), 300);
     } catch (e:any) { alert(e.message || "erro"); }
   }
