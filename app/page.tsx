@@ -28,7 +28,7 @@ function formatDateBR(dateStr: string) {
 }
 
 export default function Page() {
-  const { loggedIn, loading } = useSession();
+  const { loading, loggedIn, username, logout } = useSession();
 
   const [cats, setCats] = useState<Cat[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
@@ -151,23 +151,17 @@ export default function Page() {
     setTxs(prev => prev.filter(x => x.id !== id));
     showToast("Transação removida");
   }
-
-  async function logout() {
-    try { await api.logout(); } catch {}
-    localStorage.removeItem("username");
-    location.reload();
-  }
-
   
   if (loading) {
     return (
       <div className="p-6 text-sm text-muted">
         Verificando sessão…
-        <ForceLogoutLink className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80" />
+        {/* se quiser o link que navega para /auth/logout?next= */}
+        <ForceLogoutLink className="ml-3 underline" />
       </div>
     );
   }
-  
+
   if (!loggedIn) return <LoginCard />;
 
   return (
@@ -175,6 +169,10 @@ export default function Page() {
       {toast && <div className="toast">{toast}</div>}
 
       {/* Filtros */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-sm text-muted">Olá, {username}</span>
+        <button onClick={logout} className="btn btn-outline">Sair</button>
+      </div>
       <div className="flex items-end gap-3 overflow-x-auto whitespace-nowrap pb-2 -mx-1 px-1">
         <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Mês</label>
