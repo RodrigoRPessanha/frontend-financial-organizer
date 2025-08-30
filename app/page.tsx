@@ -24,6 +24,11 @@ function formatDateBR(dateStr: string) {
   const dt = new Date(Date.UTC(y, m - 1, d));
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(dt);
 }
+const forceLogout = async () => {
+  try { await api.logout(); } catch {}
+  localStorage.removeItem("username");
+  location.reload();
+};
 
 export default function Page() {
   const { loggedIn, loading } = useSession();
@@ -155,21 +160,18 @@ export default function Page() {
     location.reload();
   }
 
+  
   if (loading) {
-  async function forceLogout() {
-    try { await api.logout(); } catch {}
-    localStorage.removeItem("username");
-    location.reload();
+    return (
+      <div className="p-6 text-sm text-muted">
+        Verificando sessão…
+        <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
+          Forçar sair
+        </button>
+      </div>
+    );
   }
-  return (
-    <div className="p-6 text-sm text-muted">
-      Verificando sessão…
-      <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
-        Forçar sair
-      </button>
-    </div>
-  );
-}  if (!loggedIn) return <LoginCard />;
+  if (!loggedIn) return <LoginCard />;
 
   return (
     <div className="grid gap-6">

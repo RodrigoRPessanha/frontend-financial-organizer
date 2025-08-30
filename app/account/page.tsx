@@ -5,6 +5,12 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/useSession";
 import LoginCard from "../../components/LoginCard";
 
+const forceLogout = async () => {
+  try { await api.logout(); } catch {}
+  localStorage.removeItem("username");
+  location.reload();
+};
+
 function getInitials(username?: string | null){
   if(!username) return "U";
   const parts = username.split(/[._-]+/).filter(Boolean);
@@ -68,20 +74,20 @@ export default function AccountPage(){
   }
 
   if (loading) {
-  async function forceLogout() {
-    try { await api.logout(); } catch {}
-    localStorage.removeItem("username");
-    location.reload();
+    return (
+      <div className="p-6 text-sm text-muted">
+        Verificando sessão…
+        <button
+          onClick={forceLogout}
+          className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80"
+        >
+          Forçar sair
+        </button>
+      </div>
+    );
   }
-  return (
-    <div className="p-6 text-sm text-muted">
-      Verificando sessão…
-      <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
-        Forçar sair
-      </button>
-    </div>
-  );
-}  if (!loggedIn) return <LoginCard />;
+ 
+  if (!loggedIn) return <LoginCard />;
 
   const username = user?.username || localStorage.getItem("username") || "usuario";
 

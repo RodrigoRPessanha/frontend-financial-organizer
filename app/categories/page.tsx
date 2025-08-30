@@ -8,6 +8,12 @@ import LoginCard from "../../components/LoginCard";
 type Cat = { id: number; name: string; kind: "expense" | "income" };
 type Sub = { id: number; category_id: number; name: string };
 
+const forceLogout = async () => {
+  try { await api.logout(); } catch {}
+  localStorage.removeItem("username");
+  location.reload();
+};
+
 export default function CategoriesPage(){
   const { loggedIn, loading } = useSession();
   const [cats, setCats] = useState<Cat[]>([]);
@@ -39,21 +45,18 @@ export default function CategoriesPage(){
     })();
   }, [loggedIn]);
 
+  
   if (loading) {
-  async function forceLogout() {
-    try { await api.logout(); } catch {}
-    localStorage.removeItem("username");
-    location.reload();
+    return (
+      <div className="p-6 text-sm text-muted">
+        Verificando sessão…
+        <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
+          Forçar sair
+        </button>
+      </div>
+    );
   }
-  return (
-    <div className="p-6 text-sm text-muted">
-      Verificando sessão…
-      <button onClick={forceLogout} className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80">
-        Forçar sair
-      </button>
-    </div>
-  );
-}  if (!loggedIn) return <LoginCard />;
+  if (!loggedIn) return <LoginCard />;
 
   async function addCategory(){
     if(!newCat.trim()) return;
