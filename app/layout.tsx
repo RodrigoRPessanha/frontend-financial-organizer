@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <p className="text-xs text-muted">Next.js + Tailwind  + Flask (JWT)</p>
               </div>
               <a href="/" className="navlink">Dashboard</a>
-              <a href="/rates-demo" className="navlink hidden sm:inline">Cotações</a>
+              <a href="/categories" className="navlink hidden sm:inline">Categorias</a>
               <a href="/account" className="navlink">Conta</a>
               <ThemeToggle />
             </div>
