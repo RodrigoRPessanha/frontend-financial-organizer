@@ -3,167 +3,235 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 
-/** Guard e helpers */
-function useAuth(){
-  const [token, setToken] = useState<string | null>(null);
-  useEffect(() => { setToken(localStorage.getItem("token")); }, []);
-  function logout(){ localStorage.removeItem("token"); localStorage.removeItem("username"); location.reload(); }
-  return { token, setToken, logout };
+/** -------- Helpers -------- */
+function getInitials(username?: string | null) {
+  if (!username) return "U";
+  const parts = username.split(/[._-]+/).filter(Boolean);
+  const base = parts[0] || username;
+  const chars = (base[0] || "U") + (parts[1]?.[0] || "");
+  return chars.toUpperCase();
 }
 
-function LoginCard(){
+/** Cartão de login (username + senha) mostrado quando não há token */
+function LoginCard() {
   const [hasUser, setHasUser] = useState<boolean | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  useEffect(() => { api.listCategories().then(()=>setHasUser(true)).catch(()=>setHasUser(false)); }, []);
+  useEffect(() => {
+    api
+      .listCategories()
+      .then(() => setHasUser(true))
+      .catch(() => setHasUser(false));
+  }, []);
 
-  async function submit(mode: "register"|"login"){
-    try{
-      const r = await (mode === "register"
-        ? api.register({ username, password })
-        : api.login({ username, password }));
+  async function submit(mode: "register" | "login") {
+    try {
+      const r =
+        mode === "register"
+          ? await api.register({ username, password })
+          : await api.login({ username, password });
       localStorage.setItem("token", r.token);
       localStorage.setItem("username", username);
       location.reload();
-    }catch(e:any){ alert(e.message || "erro"); }
+    } catch (e: any) {
+      alert(e.message || "erro");
+    }
   }
 
   return (
     <div className="max-w-md mx-auto mt-6">
       <div className="card p-6">
-        <h2 className="text-xl font-semibold mb-1">{hasUser ? "Entrar" : "Criar sua conta"}</h2>
-        <p className="text-sm text-muted mb-4">{hasUser ? "Use seu usuário e senha" : "Primeiro usuário do sistema"}</p>
+        <h2 className="text-xl font-semibold mb-1">
+          {hasUser ? "Entrar" : "Criar sua conta"}
+        </h2>
+        <p className="text-sm text-muted mb-4">
+          {hasUser ? "Use seu usuário e senha" : "Primeiro usuário do sistema"}
+        </p>
         <label className="label">Usuário</label>
-        <input className="input mb-3" placeholder="seu_usuario" value={username} onChange={e=>setUsername(e.target.value)} />
+        <input
+          className="input mb-3"
+          placeholder="seu_usuario"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
         <label className="label">Senha</label>
-        <input type="password" className="input mb-4" placeholder="Sua senha" value={password} onChange={e=>setPassword(e.target.value)} />
+        <input
+          type="password"
+          className="input mb-4"
+          placeholder="Sua senha"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
         <div className="flex gap-2">
-          {!hasUser && <button onClick={()=>submit("register")} className="btn btn-primary w-full">Criar conta</button>}
-          <button onClick={()=>submit("login")} className="btn btn-outline w-full">Entrar</button>
+          {!hasUser && (
+            <button
+              onClick={() => submit("register")}
+              className="btn btn-primary w-full"
+            >
+              Criar conta
+            </button>
+          )}
+          <button
+            onClick={() => submit("login")}
+            className="btn btn-outline w-full"
+          >
+            Entrar
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-export default function AccountPage(){
-  const { token, setToken, logout } = useAuth();
-  const [usernameShown, setUsernameShown] = useState("");
+/** -------- Página -------- */
+export default function AccountPage() {
+  const [token, setToken] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
-  // segurança
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
-
-  // exportação
-  const [monthExport, setMonthExport] = useState<string>("");
-
-  // apagar conta
-  const [confirmText, setConfirmText] = useState("");
+  const [month, setMonth] = useState<string>(
+    new Date().toISOString().slice(0, 7)
+  );
+  const [confirm, setConfirm] = useState("");
 
   useEffect(() => {
-    if (token) setUsernameShown(localStorage.getItem("username") || "");
-  }, [token]);
+    if (typeof window !== "undefined") {
+      setToken(localStorage.getItem("token"));
+      setUsername(localStorage.getItem("username"));
+    }
+  }, []);
 
-  if (!token) return <LoginCard />;
+  function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    location.href = "/";
+  }
 
-  async function changePassword(){
+  async function changePassword() {
     if (newPwd.length < 6) return alert("Nova senha precisa de 6+ caracteres.");
-    try{
+    try {
       await api.changePassword({ old_password: oldPwd, new_password: newPwd });
-      setOldPwd(""); setNewPwd("");
+      setOldPwd("");
+      setNewPwd("");
       alert("Senha alterada com sucesso.");
-    }catch(e:any){
+    } catch (e: any) {
       alert(e.message || "Erro ao alterar senha.");
     }
   }
 
-  async function doExportCsv(){
-    try{
-      const blob = await api.exportCsv(monthExport || undefined);
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
+  async function exportCsv() {
+    try {
+      const blob = await api.exportCsv(month);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
       a.href = url;
-      a.download = monthExport ? `transacoes-${monthExport}.csv` : "transacoes.csv";
-      document.body.appendChild(a); a.click(); a.remove();
+      a.download = `transacoes-${month}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
       URL.revokeObjectURL(url);
-    }catch(e:any){
-      alert(e.message || "Erro ao exportar CSV.");
+    } catch (e: any) {
+      alert(e.message || "Erro no export.");
     }
   }
 
-  async function deleteAccount(){
-    if (confirmText !== "APAGAR") return alert('Digite "APAGAR" para confirmar.');
-    try{
+  async function deleteAccount() {
+    if (confirm.toLowerCase() !== "deletar") {
+      return alert("Digite 'deletar' para confirmar.");
+    }
+    if (!window.confirm("Tem certeza? Esta ação remove TODOS os seus dados."))
+      return;
+    try {
       await api.deleteAccount();
-      alert("Conta removida.");
+      alert("Conta deletada.");
       logout();
-    }catch(e:any){
-      alert(e.message || "Erro ao apagar conta.");
+    } catch (e: any) {
+      alert(e.message || "Erro ao deletar conta.");
     }
   }
+
+  // Guarda: sem token, mostra login
+  if (!token) return <LoginCard />;
 
   return (
-    <div className="grid gap-6 max-w-3xl mx-auto">
-      {/* Perfil */}
-      <section className="card">
-        <div className="card-header"><h3 className="card-title">Perfil</h3></div>
-        <div className="card-content grid sm:grid-cols-2 gap-3">
-          <div className="grid gap-1">
-            <label className="label">Usuário</label>
-            <input className="input" value={usernameShown} readOnly />
-          </div>
-          <div className="grid gap-1">
-            <label className="label">Sessão</label>
-            <div className="flex gap-2">
-              <button className="btn btn-outline" onClick={logout}>Sair</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Exportar dados */}
-      <section className="card">
-        <div className="card-header"><h3 className="card-title">Exportar dados (CSV)</h3></div>
-        <div className="card-content flex flex-wrap items-end gap-3">
-          <div className="grid gap-1">
-            <label className="label">Mês (opcional)</label>
-            <input type="month" className="input w-[170px]" value={monthExport} onChange={e=>setMonthExport(e.target.value)} />
-          </div>
-          <button className="btn btn-primary" onClick={doExportCsv}>Baixar CSV</button>
-        </div>
-      </section>
-
-      {/* Segurança */}
-      <section className="card">
-        <div className="card-header"><h3 className="card-title">Segurança</h3></div>
-        <div className="card-content grid gap-3">
-          <div className="grid gap-1">
-            <label className="label">Nova senha</label>
-            <input type="password" className="input" value={newPwd} onChange={(e)=>setNewPwd(e.target.value)} placeholder="••••••"/>
-          </div>
-          <div className="grid gap-1">
-            <label className="label">Senha atual</label>
-            <input type="password" className="input" value={oldPwd} onChange={(e)=>setOldPwd(e.target.value)} placeholder="••••••"/>
+    <div className="grid gap-6 max-w-2xl">
+      <section className="card p-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-accent text-white flex items-center justify-center text-xl font-bold">
+            {getInitials(username)}
           </div>
           <div>
-            <button className="btn btn-primary" onClick={changePassword}>Alterar senha</button>
+            <h2 className="text-lg font-semibold">Sua conta</h2>
+            <p className="text-sm text-muted">{username || "—"}</p>
+          </div>
+        </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button onClick={logout} className="btn btn-outline">
+            Sair
+          </button>
+        </div>
+      </section>
+
+      <section className="card p-6">
+        <h3 className="font-semibold mb-3">Alterar senha</h3>
+        <div className="grid gap-2">
+          <input
+            type="password"
+            className="input"
+            placeholder="Senha atual"
+            value={oldPwd}
+            onChange={(e) => setOldPwd(e.target.value)}
+          />
+          <input
+            type="password"
+            className="input"
+            placeholder="Nova senha (6+ caracteres)"
+            value={newPwd}
+            onChange={(e) => setNewPwd(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button onClick={changePassword} className="btn btn-primary">
+              Salvar nova senha
+            </button>
           </div>
         </div>
       </section>
 
-      {/* Zona de perigo */}
-      <section className="card">
-        <div className="card-header"><h3 className="card-title text-[rgb(var(--danger))]">Zona de perigo</h3></div>
-        <div className="card-content grid gap-3">
-          <p className="text-sm text-muted">
-            Apagar sua conta remove permanentemente categorias, subcategorias e transações.
-          </p>
-          <div className="grid sm:grid-cols-[240px_1fr_auto] gap-2">
-            <input className="input" placeholder='Digite APAGAR' value={confirmText} onChange={e=>setConfirmText(e.target.value)} />
-            <div />
-            <button className="btn btn-outline text-[rgb(var(--danger))]" onClick={deleteAccount}>Apagar conta</button>
-          </div>
+      <section className="card p-6">
+        <h3 className="font-semibold mb-3">Exportar CSV</h3>
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            className="input w-auto"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          <button onClick={exportCsv} className="btn btn-outline">
+            Baixar CSV
+          </button>
+        </div>
+        <p className="text-xs text-muted mt-2">
+          O arquivo inclui data, valor, categoria e observação.
+        </p>
+      </section>
+
+      <section className="card p-6 border-red-200">
+        <h3 className="font-semibold mb-2 text-red-600">Excluir conta e dados</h3>
+        <p className="text-sm text-muted mb-3">
+          Esta ação é permanente. Digite <b>deletar</b> para confirmar.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input
+            className="input"
+            placeholder="digite: deletar"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+          <button onClick={deleteAccount} className="btn btn-outline">
+            Excluir tudo
+          </button>
         </div>
       </section>
     </div>
