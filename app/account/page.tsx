@@ -4,41 +4,46 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/useSession";
 import LoginCard from "../../components/LoginCard";
-import ForceLogoutLink from "../../components/ForceLogoutLink";
 
-function getInitials(username?: string | null){
-  if(!username) return "U";
-  const parts = username.split(/[._-]+/).filter(Boolean);
-  const base = parts[0] || username;
-  const chars = (base[0] || "U") + (parts[1]?.[0] || "");
+function getInitials(username?: string | null) {
+  if (!username) return "U";
+  // pega até duas iniciais de palavras separadas por . _ - ou espaço
+  const parts = username.split(/[._-\s]+/).filter(Boolean);
+  const chars = (parts[0]?.[0] || username[0] || "U") + (parts[1]?.[0] || "");
   return chars.toUpperCase();
 }
 
-export default function AccountPage(){
-  const { loggedIn, loading } = useSession();
+export default function AccountPage() {
+  const { loggedIn, loading, username, logout } = useSession();
+
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
-  const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7));
+  const [month, setMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [confirm, setConfirm] = useState("");
 
-  async function logout(){
-    try { await api.logout(); } catch {}
-    localStorage.removeItem("username");
-    location.href = "/";
+  // Gate de sessão (igual à dashboard)
+  if (loading) {
+    return (
+      <div className="p-6 text-sm text-muted">
+        Verificando sessão…
+      </div>
+    );
   }
+  if (!loggedIn) return <LoginCard />;
 
-  async function changePassword(){
+  async function changePassword() {
     if (newPwd.length < 6) return alert("Nova senha precisa de 6+ caracteres.");
     try {
       await api.changePassword({ old_password: oldPwd, new_password: newPwd });
-      setOldPwd(""); setNewPwd("");
+      setOldPwd("");
+      setNewPwd("");
       alert("Senha alterada com sucesso.");
-    } catch (e:any) {
+    } catch (e: any) {
       alert(e.message || "Erro ao alterar senha.");
     }
   }
 
-  async function exportCsv(){
+  async function exportCsv() {
     try {
       const blob = await api.exportCsv(month);
       const url = URL.createObjectURL(blob);
@@ -49,12 +54,12 @@ export default function AccountPage(){
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch (e:any) {
+    } catch (e: any) {
       alert(e.message || "Erro no export.");
     }
   }
 
-  async function deleteAccount(){
+  async function deleteAccount() {
     if (confirm.toLowerCase() !== "deletar") {
       return alert("Digite 'deletar' para confirmar.");
     }
@@ -62,24 +67,11 @@ export default function AccountPage(){
     try {
       await api.deleteAccount();
       alert("Conta deletada.");
-      logout();
-    } catch (e:any) {
+      await logout(); // limpa sessão e volta p/ home
+    } catch (e: any) {
       alert(e.message || "Erro ao deletar conta.");
     }
   }
-
-  if (loading) {
-    return (
-      <div className="p-6 text-sm text-muted">
-        Verificando sessão…
-        <ForceLogoutLink className="ml-3 underline text-[rgb(var(--primary))] hover:opacity-80" />
-      </div>
-    );
-  }
- 
-  if (!loggedIn) return <LoginCard />;
-
-  const username = user?.username || localStorage.getItem("username") || "usuario";
 
   return (
     <div className="grid gap-6 max-w-2xl">
@@ -101,10 +93,24 @@ export default function AccountPage(){
       <section className="card p-6">
         <h3 className="font-semibold mb-3">Alterar senha</h3>
         <div className="grid gap-2">
-          <input type="password" className="input" placeholder="Senha atual" value={oldPwd} onChange={e=>setOldPwd(e.target.value)} />
-          <input type="password" className="input" placeholder="Nova senha (6+ caracteres)" value={newPwd} onChange={e=>setNewPwd(e.target.value)} />
+          <input
+            type="password"
+            className="input"
+            placeholder="Senha atual"
+            value={oldPwd}
+            onChange={(e) => setOldPwd(e.target.value)}
+          />
+          <input
+            type="password"
+            className="input"
+            placeholder="Nova senha (6+ caracteres)"
+            value={newPwd}
+            onChange={(e) => setNewPwd(e.target.value)}
+          />
           <div className="flex gap-2">
-            <button onClick={changePassword} className="btn btn-primary">Salvar nova senha</button>
+            <button onClick={changePassword} className="btn btn-primary">
+              Salvar nova senha
+            </button>
           </div>
         </div>
       </section>
@@ -112,18 +118,36 @@ export default function AccountPage(){
       <section className="card p-6">
         <h3 className="font-semibold mb-3">Exportar CSV</h3>
         <div className="flex items-center gap-2">
-          <input type="month" className="input w-auto" value={month} onChange={e=>setMonth(e.target.value)} />
-          <button onClick={exportCsv} className="btn btn-outline">Baixar CSV</button>
+          <input
+            type="month"
+            className="input w-auto"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          <button onClick={exportCsv} className="btn btn-outline">
+            Baixar CSV
+          </button>
         </div>
-        <p className="text-xs text-muted mt-2">O arquivo inclui data, valor, categoria e observação.</p>
+        <p className="text-xs text-muted mt-2">
+          O arquivo inclui data, valor, categoria, subcategoria e observação.
+        </p>
       </section>
 
       <section className="card p-6 border-red-200">
         <h3 className="font-semibold mb-2 text-red-600">Excluir conta e dados</h3>
-        <p className="text-sm text-muted mb-3">Esta ação é permanente. Digite <b>deletar</b> para confirmar.</p>
+        <p className="text-sm text-muted mb-3">
+          Esta ação é permanente. Digite <b>deletar</b> para confirmar.
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
-          <input className="input" placeholder="digite: deletar" value={confirm} onChange={e=>setConfirm(e.target.value)} />
-          <button onClick={deleteAccount} className="btn btn-outline">Excluir tudo</button>
+          <input
+            className="input"
+            placeholder="digite: deletar"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+          <button onClick={deleteAccount} className="btn btn-outline">
+            Excluir tudo
+          </button>
         </div>
       </section>
     </div>
