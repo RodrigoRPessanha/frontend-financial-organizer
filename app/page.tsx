@@ -28,7 +28,7 @@ function useAuth() {
   useEffect(() => { setToken(localStorage.getItem("token")); }, []);
   function logout(){
     localStorage.removeItem("token");
-    localStorage.removeItem("email");
+    localStorage.removeItem("username");
     location.reload();
   }
   return { token, logout, setToken };
@@ -37,7 +37,7 @@ function useAuth() {
 export default function Page() {
   const { token, logout, setToken } = useAuth();
   const [hasUser, setHasUser] = useState<boolean | null>(null);
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const [cats, setCats] = useState<Cat[]>([]);
@@ -82,9 +82,9 @@ export default function Page() {
 
   async function handleRegisterOrLogin(mode: "register" | "login") {
     try {
-      const r = await (mode === "register" ? api.register({ email, password }) : api.login({ email, password }));
+      const r = await (mode === "register" ? api.register({ username, password }) : api.login({ username, password }));
       localStorage.setItem("token", r.token);
-      localStorage.setItem("email", email);
+      localStorage.setItem("username", username);
       setToken(r.token);
       showToast(mode === "register" ? "Conta criada!" : "Login feito!");
       setTimeout(() => location.reload(), 300);
@@ -193,9 +193,9 @@ export default function Page() {
       <div className="max-w-md mx-auto mt-6">
         <div className="card p-6">
           <h2 className="text-xl font-semibold mb-1">{hasUser ? "Entrar" : "Criar sua conta"}</h2>
-          <p className="text-sm text-muted mb-4">{hasUser ? "Use seu e-mail e senha" : "Primeiro usuário do sistema"}</p>
-          <label className="label">E-mail</label>
-          <input className="input mb-3" placeholder="voce@email.com" value={email} onChange={e=>setEmail(e.target.value)} />
+          <p className="text-sm text-muted mb-4">{hasUser ? "Use seu usuário e senha" : "Primeiro usuário do sistema"}</p>
+          <label className="label">Usuário</label>
+          <input className="input mb-3" placeholder="seu_usuario" value={username} onChange={e=>setUsername(e.target.value)} />
           <label className="label">Senha</label>
           <input type="password" className="input mb-4" placeholder="Sua senha" value={password} onChange={e=>setPassword(e.target.value)} />
           <div className="flex gap-2">
