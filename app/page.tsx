@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api } from "../lib/api";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js";
@@ -9,24 +10,17 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 type Cat = { id: number; name: string; kind: "expense" | "income" };
 type Sub = { id: number; category_id: number; name: string };
 type Acc = { id: number; name: string; type: string };
-type Tx = { id: number; account_id: number; category_id: number; subcategory_id?: number | null; amount: number; date: string; note?: string; payment_method?: "cash"|"pix"|"card"; installments?: number; installment_index?: number };
+type Tx = { id: number; account_id: number; category_id: number; subcategory_id?: number | null; amount: number; date: string; note?: string; payment_method?: "cash"|"pix"|"card"|"vr"; installments?: number; installment_index?: number };
 
 function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 function monthOf(d: string){ return d.slice(0,7); }
-
 function formatDateBR(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
   if (!y || !m || !d) return dateStr;
-  // usar UTC pra evitar fuso mudar o dia
   const dt = new Date(Date.UTC(y, m - 1, d));
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(dt);
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(dt);
 }
 
 function useAuth() {
@@ -54,15 +48,19 @@ export default function Page() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7));
-  const [filterCat, setFilterCat] = useState<number | "">("");        // NEW
-  const [filterSub, setFilterSub] = useState<number | "">("");        // NEW
-  const [filterDay, setFilterDay] = useState<string>("");               // NEW
+  const [filterCat, setFilterCat] = useState<number | "">("");
+  const [filterSub, setFilterSub] = useState<number | "">("");
+  const [filterDay, setFilterDay] = useState<string>("");
+
+  // NEW: filtro apenas para o gráfico
+  const [payChart, setPayChart] = useState<""|"cash"|"pix"|"card"|"vr">("");
 
   const [catName, setCatName] = useState("");
   const [subName, setSubName] = useState("");
   const [subParent, setSubParent] = useState<number | "">("");
 
-  const [tx, setTx] = useState({category_id: "", subcategory_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: "", payment_method: "cash", installments: 1}); // NEW
+  const [tx, setTx] = useState({category_id: "", subcategory_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: "", payment_method: "cash", installments: 1});
+  const [filter, setFilter] = useState<"all"|"in"|"out">("all"); // se você já removeu, pode apagar este state e o seu uso
 
   const catById = useMemo(() => Object.fromEntries(cats.map(c => [c.id, c])), [cats]);
   const subsByCat = useMemo(() => {
@@ -75,7 +73,6 @@ export default function Page() {
     setToast(msg); setTimeout(() => setToast(null), 1800);
   }
 
-  // Verifica se há usuário
   useEffect(() => {
     (async () => {
       try { await api.listCategories(); setHasUser(true); }
@@ -94,7 +91,6 @@ export default function Page() {
     } catch (e:any) { alert(e.message || "erro"); }
   }
 
-  // Carrega dados + garante conta padrão
   useEffect(() => {
     if (!token) return;
     setLoading(true);
@@ -113,33 +109,40 @@ export default function Page() {
     })().finally(() => setLoading(false));
   }, [token]);
 
-  // Derived filters
   const availableSubs = Number(tx.category_id) ? (subsByCat[Number(tx.category_id)] || []) : [];
   const filterSubsAvail = filterCat ? (subsByCat[Number(filterCat)] || []) : [];
 
-  // Apply filters to transactions for table + chart
   const filteredTxs = useMemo(() => {
-  return txs.filter(t => {
-    if (month && monthOf(t.date) !== month) return false;
-    if (filterDay && t.date !== filterDay) return false;
-    if (filterCat && t.category_id !== Number(filterCat)) return false;
-    if (filterSub && (t.subcategory_id || null) !== Number(filterSub)) return false;
-    return true;
-  });
-}, [txs, month, filterDay, filterCat, filterSub]);
+    return txs.filter(t => {
+      if (month && monthOf(t.date) !== month) return false;
+      if (filterDay && t.date !== filterDay) return false;
+      if (filterCat && t.category_id !== Number(filterCat)) return false;
+      if (filterSub && (t.subcategory_id || null) !== Number(filterSub)) return false;
+      if (filter !== "all") {
+        const isIncome = (catById[t.category_id]?.kind === "income");
+        if (filter === "in" && !isIncome) return false;
+        if (filter === "out" && isIncome) return false;
+      }
+      return true;
+    });
+  }, [txs, month, filterDay, filterCat, filterSub, filter, catById]);
 
+  // Chart-only filter by payment method
+  const chartSource = useMemo(() => {
+    if (!payChart) return filteredTxs;
+    return filteredTxs.filter(t => t.payment_method === payChart);
+  }, [filteredTxs, payChart]);
 
-  // Chart derived from filteredTxs
   const chartAgg = useMemo(() => {
     const map = new Map<number, number>();
-    for (const t of filteredTxs) {
+    for (const t of chartSource) {
       const prev = map.get(t.category_id) || 0;
       map.set(t.category_id, prev + t.amount);
     }
     const labels = Array.from(map.keys()).map(id => catById[id]?.name || String(id));
     const values = Array.from(map.values()).map(v => Math.abs(v));
     return { labels, values };
-  }, [filteredTxs, catById]);
+  }, [chartSource, catById]);
 
   const data = { labels: chartAgg.labels, datasets: [{ label: "Despesas por categoria", data: chartAgg.values, backgroundColor: chartAgg.labels.map((_, i) => i % 3 === 0 ? "rgba(99,102,241,.8)" : i % 3 === 1 ? "rgba(16,185,129,.8)" : "rgba(239,68,68,.8)") }] };
 
@@ -161,17 +164,16 @@ export default function Page() {
     const payload: any = {
       account_id: accs[0]?.id,
       category_id: Number(tx.category_id),
-      subcategory_id: tx.subcategory_id ? Number(tx.subcategory_id) : undefined, // opcional
+      subcategory_id: tx.subcategory_id ? Number(tx.subcategory_id) : undefined,
       amount: -Math.abs(parseFloat(String(tx.amount).replace(",", "."))),
       date: tx.date,
       note: tx.note || undefined,
-      payment_method: tx.payment_method,                 // NEW
-      installments: Number(tx.installments || 1)         // NEW
+      payment_method: tx.payment_method,
+      installments: Number(tx.installments || 1)
     };
     if(!payload.account_id || !payload.category_id || isNaN(payload.amount)) return;
     const created = await api.createTransaction(payload);
     if (Array.isArray(created)) {
-      // múltiplas parcelas
       setTxs(prev => [...created as any[], ...prev]);
     } else {
       setTxs(prev => [created as any, ...prev]);
@@ -209,62 +211,44 @@ export default function Page() {
     <div className="grid gap-6">
       {toast && <div className="toast">{toast}</div>}
 
-      {/* Filtros em uma linha */}
+      {/* Filtros em uma linha (inclui filtro do gráfico por pagamento) */}
       <div className="flex items-end gap-3 overflow-x-auto whitespace-nowrap pb-2 -mx-1 px-1">
         <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Mês</label>
-          <input
-            type="month"
-            className="input w-[170px]"
-            value={month}
-            onChange={e=>setMonth(e.target.value)}
-          />
+          <input type="month" className="input w-[170px]" value={month} onChange={e=>setMonth(e.target.value)} />
         </div>
-
         <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Dia (opcional)</label>
-          <input
-            type="date"
-            className="input w-[160px]"
-            value={filterDay}
-            onChange={e=>setFilterDay(e.target.value)}
-          />
+          <input type="date" className="input w-[160px]" value={filterDay} onChange={e=>setFilterDay(e.target.value)} />
         </div>
-
         <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Categoria</label>
-          <select
-            className="select w-[220px]"
-            value={filterCat}
-            onChange={e=>{ const v=e.target.value; setFilterCat(v? Number(v):""); setFilterSub(""); }}
-          >
+          <select className="select w-[220px]" value={filterCat} onChange={e=>{ const v=e.target.value; setFilterCat(v? Number(v):""); setFilterSub(""); }}>
             <option value="">Todas</option>
             {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-
         <div className="flex flex-col gap-1 shrink-0">
           <label className="label">Subcategoria</label>
-          <select
-            className="select w-[220px]"
-            value={filterSub}
-            onChange={e=>setFilterSub(e.target.value? Number(e.target.value):"")}
-            disabled={!filterCat || ( (subsByCat[Number(filterCat)]||[]).length===0 )}
-          >
+          <select className="select w-[220px]" value={filterSub} onChange={e=>setFilterSub(e.target.value? Number(e.target.value):"")} disabled={!filterCat || ((subsByCat[Number(filterCat)]||[]).length===0)}>
             <option value="">Todas</option>
-            {(subsByCat[Number(filterCat)] || []).map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
+            {(subsByCat[Number(filterCat)] || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
 
-        <button
-          className="btn btn-outline shrink-0"
-          onClick={() => { setFilterDay(""); setFilterCat(""); setFilterSub(""); }}
-          title="Limpar filtros"
-        >
-          Limpar
-        </button>
+        {/* NOVO: filtro do gráfico por método de pagamento */}
+        <div className="flex flex-col gap-1 shrink-0">
+          <label className="label">Gráfico · Pagamento</label>
+          <select className="select w-[180px]" value={payChart} onChange={e=>setPayChart(e.target.value as any)}>
+            <option value="">Todos</option>
+            <option value="cash">Dinheiro</option>
+            <option value="pix">PIX</option>
+            <option value="card">Cartão</option>
+            <option value="vr">VR</option>
+          </select>
+        </div>
+
+        <button className="btn btn-outline shrink-0" onClick={() => { setFilterDay(""); setFilterCat(""); setFilterSub(""); setPayChart(""); }} title="Limpar filtros">Limpar</button>
       </div>
 
       {/* Gráfico */}
@@ -322,6 +306,7 @@ export default function Page() {
                 <option value="cash">Dinheiro</option>
                 <option value="pix">PIX</option>
                 <option value="card">Cartão</option>
+                <option value="vr">VR</option>
               </select>
             </div>
 
@@ -365,6 +350,7 @@ export default function Page() {
                   <td className="text-xs">
                     {t.payment_method === 'card' ? `Cartão ${t.installment_index}/${t.installments}`
                       : t.payment_method === 'pix' ? 'PIX'
+                      : t.payment_method === 'vr' ? 'VR'
                       : 'Dinheiro'}
                   </td>
                   <td className="truncate max-w-xs">{t.note}</td>

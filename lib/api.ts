@@ -52,9 +52,9 @@ export const api = {
   createAccount: (payload: {name: string; type: string}) =>
     http("/accounts", { method: "POST", body: JSON.stringify(payload)}),
 
-  // Transactions (com pagamentos/parcelas se seu backend já tem)
+  // Transactions (add 'vr' to type)
   listTransactions: () => http<any[]>("/transactions"),
-  createTransaction: (payload: {account_id: number; category_id: number; subcategory_id?: number; amount: number; date: string; note?: string; payment_method?: "cash"|"pix"|"card"; installments?: number}) =>
+  createTransaction: (payload: {account_id: number; category_id: number; subcategory_id?: number; amount: number; date: string; note?: string; payment_method?: "cash"|"pix"|"card"|"vr"; installments?: number}) =>
     http<any>("/transactions", { method: "POST", body: JSON.stringify(payload)}),
   deleteTransaction: async (id: number) => {
     const res = await fetch(`${API_URL}/transactions/${id}`, { method: "DELETE", headers: { ...authHeaders() }});
@@ -62,7 +62,7 @@ export const api = {
     return true;
   },
 
-  // Extras
+  // Extras (mantidos)
   summaryMonth: (month: string) =>
     http<{month: string; total: number; by_category: {category_id: number; total: number}[]; by_subcategory?: {category_id:number; subcategory_id:number; total:number}[] }>(`/summary/month?month=${encodeURIComponent(month)}`),
   deleteAccount: async () => {
