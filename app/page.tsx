@@ -7,8 +7,9 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 type Cat = { id: number; name: string; kind: "expense" | "income" };
+type Sub = { id: number; category_id: number; name: string };
 type Acc = { id: number; name: string; type: string };
-type Tx = { id: number; account_id: number; category_id: number; amount: number; date: string; note?: string };
+type Tx = { id: number; account_id: number; category_id: number; subcategory_id?: number | null; amount: number; date: string; note?: string };
 
 function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -19,7 +20,7 @@ function useAuth() {
   useEffect(() => { setToken(localStorage.getItem("token")); }, []);
   function logout(){
     localStorage.removeItem("token");
-    localStorage.removeItem("email"); // NEW: limpa o e-mail ao sair
+    localStorage.removeItem("email");
     location.reload();
   }
   return { token, logout, setToken };
@@ -32,6 +33,7 @@ export default function Page() {
   const [password, setPassword] = useState("");
 
   const [cats, setCats] = useState<Cat[]>([]);
+  const [subs, setSubs] = useState<Sub[]>([]);
   const [accs, setAccs] = useState<Acc[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,11 +43,18 @@ export default function Page() {
   const [summary, setSummary] = useState<{ total: number; by_category: {category_id: number; total: number}[] } | null>(null);
 
   const [catName, setCatName] = useState("");
-  const [tx, setTx] = useState({category_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: ""});
+  const [subName, setSubName] = useState("");
+  const [subParent, setSubParent] = useState<number | "">("");
+
+  const [tx, setTx] = useState({category_id: "", subcategory_id: "", amount: "", date: new Date().toISOString().slice(0,10), note: ""});
   const [filter, setFilter] = useState<"all"|"in"|"out">("all");
 
   const catById = useMemo(() => Object.fromEntries(cats.map(c => [c.id, c])), [cats]);
-  const accById = useMemo(() => Object.fromEntries(accs.map(a => [a.id, a])), [accs]);
+  const subsByCat = useMemo(() => {
+    const m: Record<number, Sub[]> = {};
+    for (const s of subs) { (m[s.category_id] ||= []).push(s); }
+    return m;
+  }, [subs]);
 
   function showToast(msg: string) {
     setToast(msg); setTimeout(() => setToast(null), 1800);
@@ -63,7 +72,7 @@ export default function Page() {
     try {
       const r = await (mode === "register" ? api.register({ email, password }) : api.login({ email, password }));
       localStorage.setItem("token", r.token);
-      localStorage.setItem("email", email); // NEW: salva o e-mail ao logar/registrar
+      localStorage.setItem("email", email);
       setToken(r.token);
       showToast(mode === "register" ? "Conta criada!" : "Login feito!");
       setTimeout(() => location.reload(), 300);
@@ -75,17 +84,17 @@ export default function Page() {
     if (!token) return;
     setLoading(true);
     (async () => {
-      const [c, a, t] = await Promise.all([api.listCategories(), api.listAccounts(), api.listTransactions()]);
+      const [c, a, t, s] = await Promise.all([api.listCategories(), api.listAccounts(), api.listTransactions(), api.listSubcategories()]);
       let accounts = a as any[];
       if (accounts.length === 0) {
-        // cria uma conta padrão "Pessoal" nos bastidores
         const created = await api.createAccount({ name: "Pessoal", type: "other" }) as any;
         accounts = [created];
       }
       setAccs(accounts as any);
       setCats(c as any);
       setTxs(t as any);
-      setTx(s => ({...s, category_id: (c as any[])[0]?.id || ""}));
+      setSubs(s as any);
+      setTx(x => ({...x, category_id: (c as any[])[0]?.id || ""}));
     })().finally(() => setLoading(false));
   }, [token]);
 
@@ -101,15 +110,26 @@ export default function Page() {
     setCatName(""); showToast("Categoria adicionada");
   }
 
+  async function addSubcategory() {
+    if (!subName.trim() || !subParent) return;
+    const created = await api.createSubcategory({ category_id: Number(subParent), name: subName.trim() }) as any;
+    setSubs(prev => [...prev, created]);
+    setSubName(""); showToast("Subcategoria adicionada");
+  }
+
   async function addTx() {
     const payload = {
-      account_id: accs[0]?.id, // usa conta padrão
+      account_id: accs[0]?.id,
       category_id: Number(tx.category_id),
-      amount: -Math.abs(parseFloat(String(tx.amount).replace(",", "."))), // custo diário = negativo
+      subcategory_id: tx.subcategory_id ? Number(tx.subcategory_id) : undefined, // opcional
+      amount: -Math.abs(parseFloat(String(tx.amount).replace(",", "."))),
       date: tx.date,
       note: tx.note || undefined
     };
     if(!payload.account_id || !payload.category_id || isNaN(payload.amount)) return;
+    if (payload.subcategory_id && !(subsByCat[payload.category_id] || []).some(s => s.id === payload.subcategory_id)) {
+      return alert("Subcategoria não pertence à categoria selecionada.");
+    }
     const created = await api.createTransaction(payload as any);
     setTxs(prev => [created as any, ...prev]);
     setTx(s => ({...s, amount: ""}));
@@ -152,6 +172,8 @@ export default function Page() {
   const barColors = labels.map((_, i) => i % 3 === 0 ? "rgba(99,102,241,.8)" : i % 3 === 1 ? "rgba(16,185,129,.8)" : "rgba(239,68,68,.8)");
   const data = { labels, datasets: [{ label: "Despesas por categoria", data: values, backgroundColor: barColors }] };
 
+  const availableSubs = Number(tx.category_id) ? (subsByCat[Number(tx.category_id)] || []) : [];
+
   return (
     <div className="grid gap-6">
       {toast && <div className="toast">{toast}</div>}
@@ -176,9 +198,9 @@ export default function Page() {
       {/* KPIs */}
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="kpi"><div className="hint">Categorias</div><div className="value">{cats.length}</div></div>
+        <div className="kpi"><div className="hint">Subcategorias</div><div className="value">{subs.length}</div></div>
         <div className="kpi"><div className="hint">Transações</div><div className="value">{txs.length}</div></div>
         <div className="kpi"><div className="hint">Mês</div><div className="value">{month}</div></div>
-        <div className="kpi"><div className="hint">Gasto total</div><div className="value text-expense">{summary ? formatBRL(summary.total) : "--"}</div></div>
       </section>
 
       {/* Gráfico */}
@@ -203,18 +225,38 @@ export default function Page() {
               <input className="input flex-1" placeholder="Ex.: Mercado" value={catName} onChange={e=>setCatName(e.target.value)} />
             </div>
             <button onClick={addCategory} className="btn btn-primary w-full mt-3">Adicionar</button>
-            <ul className="mt-3 text-sm space-y-1 max-h-40 overflow-auto pr-1">
-              {cats.map(c => <li key={c.id} className="flex justify-between"><span>{c.name}</span><span className="text-muted">(despesa)</span></li>)}
-            </ul>
+
+            <div className="mt-5">
+              <h4 className="text-sm font-semibold mb-2">Subcategorias</h4>
+              <div className="grid gap-2">
+                <select className="select" value={subParent} onChange={e=>setSubParent((e.target.value ? Number(e.target.value) : "") as any)}>
+                  <option value="">Categoria…</option>
+                  {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <div className="flex gap-2">
+                  <input className="input flex-1" placeholder="Ex.: Verduras" value={subName} onChange={e=>setSubName(e.target.value)} />
+                  <button onClick={addSubcategory} className="btn btn-primary">Add</button>
+                </div>
+                {subParent && (subsByCat[Number(subParent)] || []).length > 0 && (
+                  <ul className="mt-2 text-sm space-y-1 max-h-32 overflow-auto pr-1">
+                    {(subsByCat[Number(subParent)] || []).map(s => <li key={s.id} className="flex justify-between"><span>{s.name}</span></li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="card md:col-span-2">
           <div className="card-header"><h3 className="card-title">Lançar custo diário</h3></div>
           <div className="card-content grid sm:grid-cols-2 gap-2">
-            <select className="select" value={tx.category_id} onChange={e=>setTx(s=>({...s, category_id: e.target.value}))}>
+            <select className="select" value={tx.category_id} onChange={e=>setTx(s=>({...s, category_id: e.target.value, subcategory_id: ""}))}>
               <option value="">Categoria…</option>
               {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select className="select" value={tx.subcategory_id} onChange={e=>setTx(s=>({...s, subcategory_id: e.target.value}))} disabled={!Number(tx.category_id) || availableSubs.length === 0}>
+              <option value="">(opcional) Subcategoria…</option>
+              {availableSubs.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
             </select>
             <input className="input" placeholder="Valor (ex.: 35,90)" value={tx.amount} onChange={e=>setTx(s=>({...s, amount: e.target.value}))}/>
             <input type="date" className="input" value={tx.date} onChange={e=>setTx(s=>({...s, date: e.target.value}))}/>
@@ -240,10 +282,13 @@ export default function Page() {
             </thead>
             <tbody>
               {loading && (<tr><td colSpan={5} className="py-6 text-center text-muted">Carregando…</td></tr>)}
-              {!loading && filteredTxs.map(t => (
+              {!loading && txs.map(t => (
                 <tr key={t.id}>
                   <td className="py-2">{t.date}</td>
-                  <td>{catById[t.category_id]?.name || t.category_id}</td>
+                  <td>
+                    {catById[t.category_id]?.name || t.category_id}
+                    {t.subcategory_id ? <span className="text-muted"> / {(subs.find(s => s.id === t.subcategory_id)?.name || t.subcategory_id)}</span> : null}
+                  </td>
                   <td className="text-right text-expense">{formatBRL(Math.abs(t.amount))}</td>
                   <td className="truncate max-w-xs">{t.note}</td>
                   <td className="text-right">
@@ -251,7 +296,7 @@ export default function Page() {
                   </td>
                 </tr>
               ))}
-              {!loading && filteredTxs.length === 0 && (
+              {!loading && txs.length === 0 && (
                 <tr><td colSpan={5} className="py-6 text-center text-muted">Sem lançamentos ainda.</td></tr>
               )}
             </tbody>

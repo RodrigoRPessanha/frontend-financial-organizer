@@ -37,14 +37,20 @@ export const api = {
   createCategory: (payload: {name: string; kind: "expense" | "income"}) =>
     http("/categories", { method: "POST", body: JSON.stringify(payload)}),
 
-  // Accounts (mantidos para compatibilidade, mesmo que você não use)
+  // Subcategories (NEW)
+  listSubcategories: (category_id?: number) =>
+    http<any[]>(category_id ? `/subcategories?category_id=${category_id}` : "/subcategories"),
+  createSubcategory: (payload: {category_id: number; name: string}) =>
+    http("/subcategories", { method: "POST", body: JSON.stringify(payload)}),
+
+  // Accounts
   listAccounts: () => http<any[]>("/accounts"),
   createAccount: (payload: {name: string; type: string}) =>
     http("/accounts", { method: "POST", body: JSON.stringify(payload)}),
 
   // Transactions
   listTransactions: () => http<any[]>("/transactions"),
-  createTransaction: (payload: {account_id: number; category_id: number; amount: number; date: string; note?: string}) =>
+  createTransaction: (payload: {account_id: number; category_id: number; subcategory_id?: number; amount: number; date: string; note?: string}) =>
     http("/transactions", { method: "POST", body: JSON.stringify(payload)}),
   deleteTransaction: async (id: number) => {
     const res = await fetch(`${API_URL}/transactions/${id}`, { method: "DELETE", headers: { ...authHeaders() }});
@@ -54,7 +60,7 @@ export const api = {
 
   // Summary
   summaryMonth: (month: string) =>
-    http<{month: string; total: number; by_category: {category_id: number; total: number}[]}>(`/summary/month?month=${encodeURIComponent(month)}`),
+    http<{month: string; total: number; by_category: {category_id: number; total: number}[]; by_subcategory: {category_id:number; subcategory_id:number; total:number}[]}>(`/summary/month?month=${encodeURIComponent(month)}`),
 
   // Account tools
   deleteAccount: async () => {
@@ -70,5 +76,3 @@ export const api = {
     return await res.blob();
   }
 };
-
-export type Api = typeof api;
