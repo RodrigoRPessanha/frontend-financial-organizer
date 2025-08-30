@@ -2,34 +2,112 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { useSession } from "../../lib/useSession";
-import LoginCard from "../../components/LoginCard";
 
+/** -------- Helpers -------- */
 function getInitials(username?: string | null) {
   if (!username) return "U";
-  // pega até duas iniciais de palavras separadas por . _ - ou espaço
-  const parts = username.split(/[._-\s]+/).filter(Boolean);
-  const chars = (parts[0]?.[0] || username[0] || "U") + (parts[1]?.[0] || "");
+  const parts = username.split(/[._-]+/).filter(Boolean);
+  const base = parts[0] || username;
+  const chars = (base[0] || "U") + (parts[1]?.[0] || "");
   return chars.toUpperCase();
 }
 
+/** Cartão de login (username + senha) mostrado quando não há token */
+function LoginCard() {
+  const [hasUser, setHasUser] = useState<boolean | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    api
+      .listCategories()
+      .then(() => setHasUser(true))
+      .catch(() => setHasUser(false));
+  }, []);
+
+  async function submit(mode: "register" | "login") {
+    try {
+      const r =
+        mode === "register"
+          ? await api.register({ username, password })
+          : await api.login({ username, password });
+      localStorage.setItem("token", r.token);
+      localStorage.setItem("username", username);
+      location.reload();
+    } catch (e: any) {
+      alert(e.message || "erro");
+    }
+  }
+
+  return (
+    <div className="max-w-md mx-auto mt-6">
+      <div className="card p-6">
+        <h2 className="text-xl font-semibold mb-1">
+          {hasUser ? "Entrar" : "Criar sua conta"}
+        </h2>
+        <p className="text-sm text-muted mb-4">
+          {hasUser ? "Use seu usuário e senha" : "Primeiro usuário do sistema"}
+        </p>
+        <label className="label">Usuário</label>
+        <input
+          className="input mb-3"
+          placeholder="seu_usuario"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+        <label className="label">Senha</label>
+        <input
+          type="password"
+          className="input mb-4"
+          placeholder="Sua senha"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <div className="flex gap-2">
+          {!hasUser && (
+            <button
+              onClick={() => submit("register")}
+              className="btn btn-primary w-full"
+            >
+              Criar conta
+            </button>
+          )}
+          <button
+            onClick={() => submit("login")}
+            className="btn btn-outline w-full"
+          >
+            Entrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** -------- Página -------- */
 export default function AccountPage() {
-  const { loggedIn, loading, username, logout } = useSession();
+  const [token, setToken] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
-  const [month, setMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState<string>(
+    new Date().toISOString().slice(0, 7)
+  );
   const [confirm, setConfirm] = useState("");
 
-  // Gate de sessão (igual à dashboard)
-  if (loading) {
-    return (
-      <div className="p-6 text-sm text-muted">
-        Verificando sessão…
-      </div>
-    );
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setToken(localStorage.getItem("token"));
+      setUsername(localStorage.getItem("username"));
+    }
+  }, []);
+
+  function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    location.href = "/";
   }
-  if (!loggedIn) return <LoginCard />;
 
   async function changePassword() {
     if (newPwd.length < 6) return alert("Nova senha precisa de 6+ caracteres.");
@@ -63,15 +141,19 @@ export default function AccountPage() {
     if (confirm.toLowerCase() !== "deletar") {
       return alert("Digite 'deletar' para confirmar.");
     }
-    if (!window.confirm("Tem certeza? Esta ação remove TODOS os seus dados.")) return;
+    if (!window.confirm("Tem certeza? Esta ação remove TODOS os seus dados."))
+      return;
     try {
       await api.deleteAccount();
       alert("Conta deletada.");
-      await logout(); // limpa sessão e volta p/ home
+      logout();
     } catch (e: any) {
       alert(e.message || "Erro ao deletar conta.");
     }
   }
+
+  // Guarda: sem token, mostra login
+  if (!token) return <LoginCard />;
 
   return (
     <div className="grid gap-6 max-w-2xl">
@@ -86,7 +168,9 @@ export default function AccountPage() {
           </div>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button onClick={logout} className="btn btn-outline">Sair</button>
+          <button onClick={logout} className="btn btn-outline">
+            Sair
+          </button>
         </div>
       </section>
 
@@ -129,7 +213,7 @@ export default function AccountPage() {
           </button>
         </div>
         <p className="text-xs text-muted mt-2">
-          O arquivo inclui data, valor, categoria, subcategoria e observação.
+          O arquivo inclui data, valor, categoria e observação.
         </p>
       </section>
 
