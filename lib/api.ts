@@ -28,6 +28,19 @@ async function http<T>(path: string, init: RequestInit = {}) {
 }
 
 export const api = {
+
+  register: (payload: { username: string; password: string }) =>
+    http<{ ok: true }>("/auth/register", { method: "POST", body: JSON.stringify(payload) }),
+  login: (payload: { username: string; password: string }) =>
+    http<{ ok: true }>("/auth/login", { method: "POST", body: JSON.stringify(payload) }),
+  logout: () =>
+    http<{ ok: true }>("/auth/logout", { method: "POST" }),
+  me: () =>
+    http<{ id: number | null; username: string | null }>("/auth/me"),
+
+  changePassword: (payload: { old_password: string; new_password: string }) =>
+    http<{ ok: true }>("/auth/change-password", { method: "POST", body: JSON.stringify(payload) }),
+
   // AUTH…
   changePassword: (payload: { old_password: string; new_password: string }) =>
     http<{ ok: true }>("/auth/change-password", { method: "POST", body: JSON.stringify(payload) }),
